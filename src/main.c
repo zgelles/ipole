@@ -126,6 +126,7 @@ int main(int argc, char *argv[])
     //if (params.dy == 0.0) params.dy = params.dx;
     params.fovx_dsource = params.dx / fov_to_d;
     params.fovy_dsource = params.dy / fov_to_d;
+    printf("fov in uas is: %g\n",params.fovx_dsource);
   } else {
     fprintf(stderr, "No FOV was specified. Using default 160muas!\n");
     params.fovx_dsource = 160.;
@@ -503,36 +504,38 @@ int main(int argc, char *argv[])
 
 	int thislocation=i/initialspacingy*params.ny_min+j/initialspacingx;
 
-	if (i%(nx-1)!=0 && j%(ny-1)!=0){
-	  //middle case
-	  prelimarray[thislocation]=Is*initialspacingx*initialspacingx;
-	}
+	prelimarray[thislocation] = Is;
 
-	else if ((i==0 && j%(ny-1)!=0) || (i%(nx-1)!=0 && j==0)){
-	  //bottom or left vertical edge
-	  prelimarray[thislocation]=Is*(initialspacingx/2+1)*initialspacingx;
-	}
+	/* if (i%(nx-1)!=0 && j%(ny-1)!=0){ */
+	/*   //middle case */
+	/*   prelimarray[thislocation]=Is*initialspacingx*initialspacingx; */
+	/* } */
 
-	else if (i%(nx-1)!=0 || j%(ny-1)!=0){
-	  //top or right vertical edge
-	  prelimarray[thislocation]=Is*(initialspacingx/2)*initialspacingx;
-	}
-        else{
-	  //corner case
+	/* else if ((i==0 && j%(ny-1)!=0) || (i%(nx-1)!=0 && j==0)){ */
+	/*   //bottom or left vertical edge */
+	/*   prelimarray[thislocation]=Is*(initialspacingx/2+1)*initialspacingx; */
+	/* } */
 
-	  if(i==0 && j==0){
-	    //bottom left corner
-	    prelimarray[thislocation]=Is*(initialspacingx/2+1)*(initialspacingx/2+1);
-	  }
-	  else if(i==0 || j==0){
-	    //bottom right or top left
-	    prelimarray[thislocation]=Is*(initialspacingx/2+1)*initialspacingx/2;
-	  }
-	  else{
-	    //top right
-	    prelimarray[thislocation]=Is*(initialspacingx*initialspacingx)/4;
-	  }
-	}
+	/* else if (i%(nx-1)!=0 || j%(ny-1)!=0){ */
+	/*   //top or right vertical edge */
+	/*   prelimarray[thislocation]=Is*(initialspacingx/2)*initialspacingx; */
+	/* } */
+        /* else{ */
+	/*   //corner case */
+
+	/*   if(i==0 && j==0){ */
+	/*     //bottom left corner */
+	/*     prelimarray[thislocation]=Is*(initialspacingx/2+1)*(initialspacingx/2+1); */
+	/*   } */
+	/*   else if(i==0 || j==0){ */
+	/*     //bottom right or top left */
+	/*     prelimarray[thislocation]=Is*(initialspacingx/2+1)*initialspacingx/2; */
+	/*   } */
+	/*   else{ */
+	/*     //top right */
+	/*     prelimarray[thislocation]=Is*(initialspacingx*initialspacingx)/4; */
+	/*   } */
+	/* } */
 	
 	
         
@@ -554,7 +557,7 @@ int main(int argc, char *argv[])
       interpflux+=prelimarray[i];
     }
 
-    interpflux *=pow(freqcgs, 3) / (JY*nx*ny*MUAS_PER_RAD*MUAS_PER_RAD)*params.fovx_dsource*params.fovy_dsource;
+    interpflux *= pow(freqcgs, 3) / (nxmin * nxmin);
     printf("%g\n",interpflux);
     
 
@@ -582,7 +585,7 @@ int main(int argc, char *argv[])
           else if(i%previousspacingx==0 && j%previousspacingy!=0){ //pixel lies on pre-existing column
 	    I1=imageS[(i*ny+j-newspacingy)*NIMG+0]; //below
 	    I2=imageS[(i*ny+j+newspacingy)*NIMG+0]; //above
-              err_abs=(I2-I1)/2/(JY * MUAS_PER_RAD * MUAS_PER_RAD)/interpflux*params.fovx_dsource*params.fovy_dsource;
+              err_abs=(I2-I1)/2/interpflux;
               err_rel=(I2-I1)/2/I1;
 
               if ((fabs(err_abs) > params.refine_abs && //could be changed to && if wanted
@@ -616,7 +619,7 @@ int main(int argc, char *argv[])
            else if(i%previousspacingx!=0 && j%previousspacingy==0){ //pixel lies on pre-existing row
 	     I1=imageS[((i-newspacingx)*ny+j)*NIMG+0]; //left
 	     I2=imageS[((i+newspacingx)*ny+j)*NIMG+0];//right
-              err_abs=(I2-I1)/2/(JY * MUAS_PER_RAD * MUAS_PER_RAD)/interpflux*params.fovx_dsource*params.fovy_dsource;
+              err_abs=(I2-I1)/2/interpflux;
               err_rel=(I2-I1)/2/I1;
 
               if ((fabs(err_abs) > params.refine_abs && //could be changed back to || if wanted
@@ -657,7 +660,7 @@ int main(int argc, char *argv[])
                /* // central corner under nearest-neighbor, estimated by Taylor expanding at lower-left pixel */
                /* // Make sure absolute error is in Jy/muas^2 */
 
-               double err_abs = ((I2 + I3) / 2 - I1) / (JY * MUAS_PER_RAD * MUAS_PER_RAD)/interpflux*params.fovx_dsource*params.fovy_dsource;
+               double err_abs = ((I2 + I3) / 2 - I1) / interpflux;
                double err_rel = (I2 + I3) / (2 * I1) - 1.;
 
               if ((fabs(err_abs) > params.refine_abs && //could be changed to && if wanted
