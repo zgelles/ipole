@@ -61,6 +61,7 @@ int integrate_emission(struct of_traj *traj, int nsteps,
   // Unpolarized
   *Intensity = 0.;
   *Tau = 0.;
+  int ZERO_EMISSION = 0;
   // Error flag
   int oddflag = 0;
 
@@ -113,14 +114,25 @@ int integrate_emission(struct of_traj *traj, int nsteps,
       double ji, ki, jf, kf;
       get_jkinv(ti.X, ti.Kcon, &ji, &ki, params);
       get_jkinv(tf.X, tf.Kcon, &jf, &kf, params);
-      *Intensity = approximate_solve(*Intensity, ji, ki, jf, kf, ti.dl, Tau);
+      
+      if (ti.nturns == params->target_nturns){
+	*Intensity = approximate_solve(*Intensity, ji, ki, jf, kf, ti.dl, Tau);
+      }
+      else {
+	*Intensity = approximate_solve(*Intensity, 0, ki, 0, kf, ti.dl, Tau);
+      }
 
+      ZERO_EMISSION = 0;
+      if (ti.nturns != params->target_nturns) {
+	ZERO_EMISSION = 1;
+      }
+      
       // Solve polarized transport
       if (!params->only_unpolarized) {
         sflag |= evolve_N(ti.X, ti.Kcon,
-                        ti.Xhalf, ti.Kconhalf,
-                        tf.X, tf.Kcon,
-                        ti.dl, N_coord, tauF, params);
+			  ti.Xhalf, ti.Kconhalf,
+			  tf.X, tf.Kcon,
+			  ti.dl, N_coord, tauF, params, ZERO_EMISSION);
       }
     }
 
@@ -233,7 +245,7 @@ void push_polar(double Xi[NDIM], double Xm[NDIM], double Xf[NDIM],
 int evolve_N(double Xi[NDIM], double Kconi[NDIM],
     double Xhalf[NDIM], double Kconhalf[NDIM],
     double Xf[NDIM], double Kconf[NDIM],
-    double dlam, double complex N_coord[NDIM][NDIM], double *tauF, Params *params)
+	     double dlam, double complex N_coord[NDIM][NDIM], double *tauF, Params *params, int cut_emission)
 {
   // TODO might be useful to split this into flat-space S->S portion and transformations to/from N
   double gcov[NDIM][NDIM];
@@ -258,6 +270,10 @@ int evolve_N(double Xi[NDIM], double Kconi[NDIM],
   // evaluate transport coefficients
   jar_calc(Xf, Kconf, &jI, &jQ, &jU, &jV,
       &aI, &aQ, &aU, &aV, &rQ, &rU, &rV, params);
+
+  if (cut_emission) {
+    jI = jQ = jU = jV = 0.;
+  }
 
   // make plasma tetrad
   B = get_model_b(Xf); /* field in G */

@@ -225,6 +225,9 @@ int main(int argc, char *argv[])
         double tgeoitmp = 1.;
         double tgeoftmp = 1.;
 
+	int passed_midplane_if_zero = -1;
+	int nturns = 0;
+
         MULOOP Xhalf[mu] = X[mu];
         while (!stop_backward_integration(X, Xhalf, Kcon)) {
           dl = stepsize(X, Kcon, params.eps);
@@ -404,10 +407,10 @@ int main(int argc, char *argv[])
 
               dimage[pxidx].intensity = 
                 approximate_solve(dimage[pxidx].intensity, ji,ki,jf,kf, dtraj[stepidx].dl, &(dimage[pxidx].tau));
-              
+              int cutregion = 0;
               // polarized transport
               if (! params.only_unpolarized) {
-                evolve_N(Xi, Kconi, Xhalf, Kconhalf, Xf, Kconf, dtraj[stepidx].dl, dimage[pxidx].N_coord, &(dimage[pxidx].tauF), &params);
+                evolve_N(Xi, Kconi, Xhalf, Kconhalf, Xf, Kconf, dtraj[stepidx].dl, dimage[pxidx].N_coord, &(dimage[pxidx].tauF), &params, cutregion);
                 if (isnan(creal(dimage[pxidx].N_coord[0][0]))) {
                   exit(-2);
                 }
@@ -806,7 +809,6 @@ int main(int argc, char *argv[])
             err_rel = (I4-I3-I2+I1+I8-I7-I6+I5) / (4 * (I2+I3+I7+I8));
 
 
-        if (I5 == 0 || I6 == 0 || I7 == 0 || I8 == 0) printf("%i\n", i);
         }
 
             // Refinement criterion thanks to Zack Gelles: absolute & relative error of
@@ -900,7 +902,7 @@ void get_pixel(size_t i, size_t j, int nx, int ny, double Xcam[NDIM], Params par
 #if !INTEGRATOR_TEST
   MULOOP Kcon[mu] *= freq;
 #endif
-  int nstep = trace_geodesic(X, Kcon, traj, params.eps, params.maxnstep);
+  int nstep = trace_geodesic(X, Kcon, traj, params.eps, params.maxnstep, Xcam);
   if (nstep >= params.maxnstep-1) {
     // You almost certainly don't want to continue if this happens
     fprintf(stderr, "\nMaxNStep exceeded in pixel %ld %ld!\n", i, j);

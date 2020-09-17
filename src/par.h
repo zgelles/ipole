@@ -37,6 +37,9 @@ typedef struct params_t {
   const char dump[STRLEN];
   const char outf[STRLEN];
 
+  // for picking out rings
+  int target_nturns;
+
   // Adaptive tracing
   int nx_min, ny_min;   // dimensions of lowest resolution image
   double refine_abs, refine_rel; // Refinement tolerances
