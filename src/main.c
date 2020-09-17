@@ -580,10 +580,10 @@ int main(int argc, char *argv[])
       fprintf(stderr, "Refining level %d of %d, spacing %ld,%ld\n", refined_level+1, refine_level, newspacingx, newspacingy);
 
 #pragma omp parallel for schedule(dynamic,1) collapse(2)
-      for (size_t i = 0; i < nx; i += newspacingx) {
-        for (size_t j = 0; j < ny; j += newspacingy) {
-
-          if (j == 0) fprintf(stderr, "%ld ", i);
+      for (int i = 0; i < nx; i += newspacingx) {
+        for (int j = 0; j < ny; j += newspacingy) {
+          if (j == 0)
+            fprintf(stderr, "%d ", i);
 
           double Intensity = 0;
           double Is = 0, Qs = 0, Us = 0, Vs = 0;
@@ -592,17 +592,43 @@ int main(int argc, char *argv[])
           size_t previousspacingx = newspacingx * 2;
           size_t previousspacingy = newspacingy * 2;
 
-          double I1, I2, I3, I4, err_abs, err_rel;
+	  double I1, I2, I3, I4, I5, I6, I7, I8, err_abs, err_rel;
+
           if (i % previousspacingx == 0 && j % previousspacingy == 0) {
             // pixel has already been ray-traced
             continue;
           } else if (i % previousspacingx == 0 && j % previousspacingy != 0) {
             // pixel lies on pre-existing column
 
-            I1 = image[i*ny+j-newspacingy]; // below
-            I2 = image[i*ny+j+newspacingy]; // above
-            err_abs = (I2 - I1) / 2 / Iavg;
-            err_rel = (I2 - I1) / 2 / I1;
+        if (ny-j-1 <= 3*newspacingy){
+          I1 = image[(i*ny+j-newspacingy-2*previousspacingy)];
+          I2 = image[(i*ny+j-newspacingy-previousspacingy)];
+          I3 = image[(i*ny+j-newspacingy)];
+          I4 = image[(i*ny+j+newspacingy)];
+
+          err_abs = (I4-2*I3+I2) / (8 * Iavg);
+          err_rel = (I4-2*I3+I2) / (4 * (I3 + I4));
+        }
+        else if(j <= 3*newspacingy){
+          I1 = image[(i*ny+j-newspacingy)];
+          I2 = image[(i*ny+j+newspacingy)];
+          I3 = image[(i*ny+j+newspacingy+previousspacingy)];
+          I4 = image[(i*ny+j+newspacingy+2*previousspacingy)];
+
+          err_abs = (I1-2*I2+I3) / (8 * Iavg);
+          err_rel = (I1-2*I2+I3) / (4*(I1+I2));
+        }
+        
+        else{
+          I1 = image[(i*ny+j-newspacingy-previousspacingy)];
+          I2 = image[(i*ny+j-newspacingy)];
+          I3 = image[(i*ny+j+newspacingy)];
+          I4 = image[(i*ny+j+newspacingy+previousspacingy)];
+
+          err_abs = (I4-I3-I2+I1) / (8 * Iavg);
+          err_rel = (I4-I3-I2+I1) / (4*(I2+I3));
+        }
+        
 
             if ((fabs(err_abs) > params.refine_abs && // could be changed to || if wanted
                 fabs(err_rel) > params.refine_rel)
@@ -630,15 +656,41 @@ int main(int argc, char *argv[])
                 // linear
                 lininterp2(image, imageS, taus, i, j - newspacingy, i,
                             j + newspacingy, i, j, nx, ny, params.only_unpolarized);
-
               }
             }
           } else if (i % previousspacingx != 0 && j % previousspacingy == 0) {
             // pixel lies on pre-existing row
-            I1 = image[(i-newspacingx)*ny+j]; //left
-            I2 = image[(i+newspacingx)*ny+j]; //right
-            err_abs = (I2 - I1) / 2 / Iavg;
-            err_rel = (I2 - I1) / 2 / I1;
+
+        if (nx-i-1 <= 3*newspacingx){
+          I1 = image[(i-newspacingx-2*previousspacingy)*ny+j];
+          I2 = image[(i-newspacingx-previousspacingy)*ny+j];
+          I3 = image[(i-newspacingx)*ny+j];
+          I4 = image[(i+newspacingx)*ny+j];
+
+          err_abs = (I4-2*I3+I2) / (8 * Iavg);
+          err_rel = (I4-2*I3+I2) / (4 * (I3 + I4));
+        }
+
+        else if (i <= 3*newspacingx){
+          I1 = image[(i-newspacingx)*ny+j];
+          I2 = image[(i+newspacingx)*ny+j];
+          I3 = image[(i-newspacingx+previousspacingx)*ny+j];
+          I4 = image[(i-newspacingx+2*previousspacingx)*ny+j];
+
+          err_abs = (I1-2*I2+I3) / (8 * Iavg);
+          err_rel = (I1-2*I2+I3) / (4 * (I1 + I2));
+        }
+
+        else{
+          I1 = image[(i-newspacingx-previousspacingy)*ny+j];
+          I2 = image[(i-newspacingx)*ny+j];
+          I3 = image[(i+newspacingx)*ny+j];
+          I4 = image[(i-newspacingx+previousspacingx)*ny+j];
+
+          err_abs = (I4-I3-I2+I1) / (8 * Iavg);
+          err_rel = (I4-I3-I2+I1) / (4 * (I2 + I3));
+
+        }
 
             if ((fabs(err_abs) > params.refine_abs && //could be changed back to || if wanted
                 fabs(err_rel) > params.refine_rel)
@@ -670,21 +722,101 @@ int main(int argc, char *argv[])
             }
           } else {
             // pixel lies equidistant from four corners
-            I1 = image[(i-newspacingx)*ny+j-newspacingy]; // bottom left
-            I2 = image[(i+newspacingx)*ny+j-newspacingy]; // bottom right
-            I3 = image[(i-newspacingx)*ny+j+newspacingy]; // upper left
-            I4 = image[(i+newspacingx)*ny+(j+newspacingy)]; // upper right
+        int rt = 0;
+
+        if ((nx-1-i<=3*newspacingx && j<=3*newspacingy) || (i<=3*newspacingx && ny-1-j<=3*newspacingy)
+        || (nx-1-i<=3*newspacingx && ny-1-j<=3*newspacingy) || (i<=3*newspacingx && j<=3*newspacingy)){
+          rt = 1;
+        }
+              
+        else if (i<=3*newspacingx){
+            I1 = image[(i-newspacingx)*ny+j-newspacingy];
+            I2 = image[(i+newspacingx)*ny+j+newspacingy];
+            I3 = image[(i+newspacingx+previousspacingx)*ny+j+newspacingy+previousspacingy];
+            I4 = image[(i+newspacingx+2*previousspacingx)*ny+j+newspacingy+2*previousspacingy];
+            
+            I5 = image[(i-newspacingx)*ny+j+newspacingy];
+            I6 = image[(i+newspacingx)*ny+j-newspacingy];
+            I7 = image[(i+newspacingx+previousspacingx)*ny+j-newspacingy-previousspacingy];
+            I8 = image[(i+newspacingx+2*previousspacingx)*ny+j-newspacingy-2*previousspacingy];
+             
+            err_abs = (I1-2*I2+I3+I5-2*I6+I7)/ (16 * Iavg);
+            err_rel = (I1-2*I2+I3+I5-2*I6+I7)/(4 * (I1+I2+I5+I6));
+        }
+
+                 
+             
+        else if (j<=3*newspacingy){
+            I1 = image[(i-newspacingx)*ny+j-newspacingy];
+            I2 = image[(i+newspacingx)*ny+j+newspacingy];
+            I3 = image[(i+newspacingx+previousspacingx)*ny+j+newspacingy+previousspacingy];
+            I4 = image[(i+newspacingx+2*previousspacingx)*ny+j+newspacingy+2*previousspacingy];
+             
+            I5 = image[(i+newspacingx)*ny+j-newspacingy];
+            I6 = image[(i-newspacingx)*ny+j+newspacingy];
+            I7 = image[(i-newspacingx-previousspacingx)*ny+j+newspacingy+previousspacingy];
+            I8 = image[(i-newspacingx-2*previousspacingx)*ny+j+newspacingy+2*previousspacingy];
+             
+            err_abs = (I1-2*I2+I3+I5-2*I6+I7)/ (16 * Iavg);
+            err_rel = (I1-2*I2+I3+I5-2*I6+I7)/(4 * (I1+I2+I5+I6));
+        }
+             
+        else if (nx-i-1<=3*newspacingx){
+            I1 = image[(i-newspacingx-2*previousspacingx)*ny+j-newspacingy-2*previousspacingy];
+            I2 = image[(i-newspacingx-previousspacingx)*ny+j-newspacingy-previousspacingx];
+            I3 = image[(i-newspacingx)*ny+j-newspacingy];
+            I4 = image[(i+newspacingx)*ny+j+newspacingy];
+             
+            I5 = image[(i-newspacingx-2*previousspacingx)*ny+j+newspacingy+2*previousspacingy];
+            I6 = image[(i-newspacingx-previousspacingx)*ny+j+newspacingy+previousspacingy];
+            I7 = image[(i-newspacingx)*ny+j+newspacingy];
+            I8 = image[(i+newspacingx)*ny+j-newspacingy];
+             
+            err_abs = (I4-2*I3+I2+I8-2*I7+I6) / (16 * Iavg);
+            err_rel = (I4-2*I3+I2+I8-2*I7+I6) / (4 * (I3+I4+I7+I8));
+        }
+             
+        else if (ny-j-1<=3*newspacingx){
+            I1 = image[(i-newspacingx-2*previousspacingx)*ny+j-newspacingy-2*previousspacingy];
+            I2 = image[(i-newspacingx-previousspacingx)*ny+j-newspacingy-previousspacingx];
+            I3 = image[(i-newspacingx)*ny+j-newspacingy];
+            I4 = image[(i+newspacingx)*ny+j+newspacingy];
+             
+            I5 = image[(i+newspacingx+2*previousspacingx)*ny+j-newspacingy-2*previousspacingy];
+            I6 = image[(i+newspacingx+previousspacingx)*ny+j-newspacingy-previousspacingy];
+            I7 = image[(i+newspacingx)*ny+j-newspacingy];
+            I8 = image[(i-newspacingx)*ny+j+newspacingy];
+             
+            err_abs = (I4-2*I3+I2+I8-2*I7+I6) / (16 * Iavg);
+            err_rel = (I4-2*I3+I2+I8-2*I7+I6) / (4 * (I3+I4+I7+I8));
+        }
+             
+        else{
+            I1 = image[(i-newspacingx-previousspacingx)*ny+j-newspacingy-previousspacingy];
+            I2 = image[(i-newspacingx)*ny+j-newspacingy];
+            I3 = image[(i+newspacingx)*ny+j+newspacingy];
+            I4 = image[(i+newspacingx+previousspacingx)*ny+j+newspacingy+previousspacingy];
+             
+            I5 = image[(i+newspacingx+previousspacingx)*ny+j-newspacingy-previousspacingy];
+            I6 = image[(i+newspacingx)*ny+j-newspacingy];
+            I7 = image[(i-newspacingx)*ny+j+newspacingy];
+            I8 = image[(i-newspacingx-previousspacingx)*ny+j+newspacingy+previousspacingy];
+         
+            err_abs = (I4-I3-I2+I1+I8-I7-I6+I5) / (16 * Iavg);
+            err_rel = (I4-I3-I2+I1+I8-I7-I6+I5) / (4 * (I2+I3+I7+I8));
+
+
+        if (I5 == 0 || I6 == 0 || I7 == 0 || I8 == 0) printf("%i\n", i);
+        }
 
             // Refinement criterion thanks to Zack Gelles: absolute & relative error of
             // central corner under nearest-neighbor, estimated by Taylor expanding at lower-left pixel
             // Make sure absolute error is in Jy/muas^2
 
-            double err_abs = ((I2 + I3) / 2 - I1) / Iavg;
-            double err_rel = (I2 + I3) / (2 * I1) - 1.;
 
-            if ((fabs (err_abs) > params.refine_abs && //could be changed to && if wanted
+            if (((fabs (err_abs) > params.refine_abs && //could be changed to && if wanted
                 fabs (err_rel) > params.refine_rel)
-                && fabs (I1) > params.refine_cut) {
+         && fabs (I1) > params.refine_cut) || rt == 1) {
 
               // ray trace (tolerances exceeded)
 
@@ -707,13 +839,13 @@ int main(int argc, char *argv[])
                 // fills in with the nearest neighbor (choosing one side)
               } else {
                 // linear
-                lininterp4(image, imageS, taus, i - newspacingx,
-                            j - newspacingy, i + newspacingx, j - newspacingy,
-                            i - newspacingx, j + newspacingy, i + newspacingx,
-                            j + newspacingy, i, j, nx, ny, params.only_unpolarized);
+        lininterp4(image, imageS, taus, i - newspacingx, j - newspacingy, i + newspacingx,
+               j + newspacingy, i - newspacingx, j + newspacingy, i + newspacingx, j - newspacingy, i, j, nx, ny, params.only_unpolarized);
               }
             }
           }
+
+
         }
       }
 
