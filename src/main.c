@@ -408,6 +408,7 @@ int main(int argc, char *argv[])
               dimage[pxidx].intensity = 
                 approximate_solve(dimage[pxidx].intensity, ji,ki,jf,kf, dtraj[stepidx].dl, &(dimage[pxidx].tau));
               int cutregion = 0;
+	      //not compatible with slow light here
               // polarized transport
               if (! params.only_unpolarized) {
                 evolve_N(Xi, Kconi, Xhalf, Kconhalf, Xf, Kconf, dtraj[stepidx].dl, dimage[pxidx].N_coord, &(dimage[pxidx].tauF), &params, cutregion);
