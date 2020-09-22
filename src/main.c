@@ -59,6 +59,7 @@ Params params = { 0 };
 int main(int argc, char *argv[]) 
 {
   // motd
+
   fprintf(stderr, "%s. githash: %s\n", VERSION_STRING, xstr(VERSION));
   fprintf(stderr, "notes: %s\n\n", xstr(NOTES));
 
@@ -91,8 +92,12 @@ int main(int argc, char *argv[])
     params.nx_min = params.nx;
     params.ny_min = params.ny;
   }
+  
+  //  printf("%g\n",log2((params.nx - params.nx % 2)/(params.nx_min - params.nx_min % 2))+1);
 
-  int refine_level = log2((params.nx - params.nx % 2)/(params.nx_min - params.nx_min % 2))+1;
+  int refine_level = params.nx_min > 1 ? log2((params.nx - params.nx % 2)/(params.nx_min - params.nx_min % 2))+1 : log2((params.ny - params.ny % 2)/(params.ny_min - params.ny_min % 2))+1;
+  printf("made it\n");
+  //Requires that at least nxmin or nymin is greater than 1
   // INTERNAL SIZE.  If nx or ny is even, compute an extra row/column to use the 2^N+1 scheme
   size_t nx, ny, nxmin, nymin;
   if (refine_level > 1 && params.nx % 2 == 0) {
@@ -179,6 +184,7 @@ int main(int argc, char *argv[])
       exit(-1);
     }
   }
+
 
   // slow light
   if (SLOW_LIGHT) {
@@ -480,8 +486,10 @@ int main(int argc, char *argv[])
   } else {
     // BASE IMAGE at n_min
     // Allocate it, or use the existing allocation for just 1 level
-    size_t initialspacingx = (nx - 1) / (nxmin - 1);
-    size_t initialspacingy = (ny - 1) / (nymin - 1);
+    size_t initialspacingx = nxmin > 1 ? (nx - 1) / (nxmin - 1) : 1;
+    size_t initialspacingy = nymin > 1 ? (ny - 1) / (nymin - 1) : 1;
+    printf(" initialspacingy %zu\n", initialspacingy);
+    printf(" initialspacingx %zu\n", initialspacingx);
 
 #if DEBUG
     fprintf(stderr, "Image dimensions: %d %d, memory dimensions %ld %ld, minimum %ld %ld\n",
@@ -504,14 +512,27 @@ int main(int argc, char *argv[])
       }
     }
 
+    double count0 = 0;
+
     // Get the "base image" -- if not adaptively refining, this is just the whole image
     // Note the average of the interpolated image != the average of calculated pixels, though they're close.
 #pragma omp parallel for schedule(dynamic,1) collapse(2)
     for (size_t i = 0; i < nx; i += initialspacingx) {
       for (size_t j = 0; j < ny; j += initialspacingy) {
 
-        if (j==0) fprintf(stderr, "%ld ", i);
-        size_t thislocation = i / initialspacingy * nymin + j / initialspacingx;
+	size_t thislocation;
+	//        if (j==0) fprintf(stderr, "%ld ", i);
+	if (nxmin > 1 && nymin > 1){
+	  thislocation = i / initialspacingx * nymin + j / initialspacingy;
+	}
+	else if (nxmin > 1){ 
+	  thislocation = i / initialspacingx;
+	  //	  printf("%zu\n",thislocation);
+	}
+	else{
+	  thislocation = j / initialspacingy;
+	}
+	
         double Intensity = 0;
         double Is = 0, Qs = 0, Us = 0, Vs = 0;
         double Tau = 0, tauF = 0;
@@ -525,36 +546,58 @@ int main(int argc, char *argv[])
 
         interp_flag[i*ny+j] = 0;
 
+	count0 += Intensity;
+
         if (refine_level > 1) {
+	  if (nymin == 1){
+	    prelimarray[thislocation] = i % (nx - 1) != 0 ? Intensity * initialspacingx : Intensity * (initialspacingx / 2 + 1);
+	    continue;
+	  }
+	  if (nxmin == 1){
+	    prelimarray[thislocation] = j % (ny - 1) != 0 ? Intensity * initialspacingy : Intensity * (initialspacingy / 2 + 1);
+	    continue;
+	  }
+	  
           // computes a total interpolated flux from first pass
           // adds the total number of pixels adjacent to this one
           // assumes nx=ny and nx_min=ny_min
-          
           if (i % (nx - 1) != 0 && j % (ny - 1) != 0) {
             // middle case
-            prelimarray[thislocation] = Intensity * initialspacingx * initialspacingx;
-          } else if ((i == 0 && j % (ny - 1) != 0) || (i % (nx - 1) != 0 && j == 0)) {
-            // bottom or left vertical edge
-            prelimarray[thislocation] = Intensity * (initialspacingx / 2 + 1) * initialspacingx;
-          } else if (i % (nx - 1) != 0 || j % (ny - 1) != 0) {
-            // top or right vertical edge
-            prelimarray[thislocation] = Intensity * (initialspacingx / 2) * initialspacingx;
-          } else {
+            prelimarray[thislocation] = Intensity * initialspacingx * initialspacingy;
+          } else if ((i == 0 && j % (ny - 1) != 0)){
+            // left edge
+            prelimarray[thislocation] = Intensity * (initialspacingx / 2 + 1) * initialspacingy;
+          } else if (i % (nx - 1) != 0 && j == 0){
+	    //bottom edge
+	    prelimarray[thislocation] = Intensity * (initialspacingy / 2 + 1) * initialspacingx;
+	  } else if (i % (nx - 1) != 0) {
+            // top edge
+            prelimarray[thislocation] = Intensity * (initialspacingy / 2) * initialspacingx;
+          } else if (j % (ny - 1) != 0){
+	    //right edge
+	    prelimarray[thislocation] = Intensity * (initialspacingx / 2) * initialspacingy;
+	  }
+	  else {
             // corner case
             if (i == 0 && j == 0) {
               // bottom left corner
-              prelimarray[thislocation] = Intensity * (initialspacingx / 2 + 1) * (initialspacingx / 2 + 1);
-            } else if (i == 0 || j == 0) {
-              // bottom right or top left
-              prelimarray[thislocation] = Intensity * (initialspacingx / 2 + 1) * initialspacingx / 2;
-            } else {
+              prelimarray[thislocation] = Intensity * (initialspacingx / 2 + 1) * (initialspacingy / 2 + 1);
+            } else if (i == 0) {
+              //top left
+              prelimarray[thislocation] = Intensity * (initialspacingx / 2 + 1) * initialspacingy / 2;
+            } else if (j == 0){
+	      //bottom right
+	      prelimarray[thislocation] = Intensity * (initialspacingy / 2 + 1) * initialspacingx / 2;
+	    }
+	    else {
               // top right
-              prelimarray[thislocation] = Intensity * (initialspacingx * initialspacingx) / 4;
+              prelimarray[thislocation] = Intensity * (initialspacingx * initialspacingy) / 4;
             }
           }
         }
       }
     }
+
 
     // compute estimated flux total and intensity average
     double Iavg = 0;
@@ -567,6 +610,11 @@ int main(int argc, char *argv[])
       // Average intensity per pixel
       Iavg = interp_tot * pow(freqcgs, 3) / (nx * ny);
 
+      count0 *= pow(freqcgs, 3) / (nxmin * nymin);
+
+      printf("%g\n",Iavg);
+      printf("%g\n", count0);
+
       // Print calculated total intensity for debug
 #if DEBUG
       fprintf(stderr, "\nInitial flux guess: %g", Iavg * (params.nx * params.ny) * scale);
@@ -575,8 +623,8 @@ int main(int argc, char *argv[])
     }
 
     for (int refined_level = 1; refined_level < refine_level; refined_level++) {
-      size_t newspacingx = initialspacingx / pow(2, refined_level);
-      size_t newspacingy = initialspacingy / pow(2, refined_level);
+      size_t newspacingx = nxmin > 1 ? initialspacingx / pow(2, refined_level) : 1;
+      size_t newspacingy = nymin > 1 ? initialspacingy / pow(2, refined_level) : 1;
       fprintf(stderr, "Refining level %d of %d, spacing %ld,%ld\n", refined_level+1, refine_level, newspacingx, newspacingy);
 
 #pragma omp parallel for schedule(dynamic,1) collapse(2)
@@ -589,8 +637,8 @@ int main(int argc, char *argv[])
           double Is = 0, Qs = 0, Us = 0, Vs = 0;
           double Tau = 0, tauF = 0;
 
-          size_t previousspacingx = newspacingx * 2;
-          size_t previousspacingy = newspacingy * 2;
+          size_t previousspacingx = nxmin > 1 ? newspacingx * 2 : 1;
+          size_t previousspacingy = nymin > 1 ? newspacingy * 2 : 1;
 
 	  double I1, I2, I3, I4, I5, I6, I7, I8, err_abs, err_rel;
 
@@ -662,8 +710,8 @@ int main(int argc, char *argv[])
             // pixel lies on pre-existing row
 
         if (nx-i-1 <= 3*newspacingx){
-          I1 = image[(i-newspacingx-2*previousspacingy)*ny+j];
-          I2 = image[(i-newspacingx-previousspacingy)*ny+j];
+          I1 = image[(i-newspacingx-2*previousspacingx)*ny+j];
+          I2 = image[(i-newspacingx-previousspacingx)*ny+j];
           I3 = image[(i-newspacingx)*ny+j];
           I4 = image[(i+newspacingx)*ny+j];
 
@@ -682,7 +730,7 @@ int main(int argc, char *argv[])
         }
 
         else{
-          I1 = image[(i-newspacingx-previousspacingy)*ny+j];
+          I1 = image[(i-newspacingx-previousspacingx)*ny+j];
           I2 = image[(i-newspacingx)*ny+j];
           I3 = image[(i+newspacingx)*ny+j];
           I4 = image[(i-newspacingx+previousspacingx)*ny+j];
@@ -763,7 +811,7 @@ int main(int argc, char *argv[])
              
         else if (nx-i-1<=3*newspacingx){
             I1 = image[(i-newspacingx-2*previousspacingx)*ny+j-newspacingy-2*previousspacingy];
-            I2 = image[(i-newspacingx-previousspacingx)*ny+j-newspacingy-previousspacingx];
+            I2 = image[(i-newspacingx-previousspacingx)*ny+j-newspacingy-previousspacingy];
             I3 = image[(i-newspacingx)*ny+j-newspacingy];
             I4 = image[(i+newspacingx)*ny+j+newspacingy];
              
@@ -778,7 +826,7 @@ int main(int argc, char *argv[])
              
         else if (ny-j-1<=3*newspacingx){
             I1 = image[(i-newspacingx-2*previousspacingx)*ny+j-newspacingy-2*previousspacingy];
-            I2 = image[(i-newspacingx-previousspacingx)*ny+j-newspacingy-previousspacingx];
+            I2 = image[(i-newspacingx-previousspacingx)*ny+j-newspacingy-previousspacingy];
             I3 = image[(i-newspacingx)*ny+j-newspacingy];
             I4 = image[(i+newspacingx)*ny+j+newspacingy];
              
@@ -806,7 +854,7 @@ int main(int argc, char *argv[])
             err_rel = (I4-I3-I2+I1+I8-I7-I6+I5) / (4 * (I2+I3+I7+I8));
 
 
-        if (I5 == 0 || I6 == 0 || I7 == 0 || I8 == 0) printf("%i\n", i);
+        if (I1 == 0 || I2 == 0 || I3 == 0 ||I4 == 0 || I5 == 0 || I6 == 0 || I7 == 0 || I8 == 0) printf("%i\n", i);
         }
 
             // Refinement criterion thanks to Zack Gelles: absolute & relative error of
