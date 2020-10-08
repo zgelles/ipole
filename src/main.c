@@ -519,6 +519,9 @@ int main(int argc, char *argv[])
 #pragma omp parallel for schedule(dynamic,1) collapse(2)
     for (size_t i = 0; i < nx; i += initialspacingx) {
       for (size_t j = 0; j < ny; j += initialspacingy) {
+	if (j == 0){
+	  fprintf(stderr, "%zu ", i);
+	}
 
 	size_t thislocation;
 	//        if (j==0) fprintf(stderr, "%ld ", i);
@@ -550,11 +553,11 @@ int main(int argc, char *argv[])
 
         if (refine_level > 1) {
 	  if (nymin == 1){
-	    prelimarray[thislocation] = i % (nx - 1) != 0 ? Intensity * initialspacingx : Intensity * (initialspacingx / 2 + 1);
+	    prelimarray[thislocation] = i % (nx - 1) != 0 ? Intensity * initialspacingx : Intensity * (initialspacingx / 2 + 1 / 2);
 	    continue;
 	  }
 	  if (nxmin == 1){
-	    prelimarray[thislocation] = j % (ny - 1) != 0 ? Intensity * initialspacingy : Intensity * (initialspacingy / 2 + 1);
+	    prelimarray[thislocation] = j % (ny - 1) != 0 ? Intensity * initialspacingy : Intensity * (initialspacingy / 2 + 1 / 2);
 	    continue;
 	  }
 	  
@@ -564,35 +567,16 @@ int main(int argc, char *argv[])
           if (i % (nx - 1) != 0 && j % (ny - 1) != 0) {
             // middle case
             prelimarray[thislocation] = Intensity * initialspacingx * initialspacingy;
-          } else if ((i == 0 && j % (ny - 1) != 0)){
-            // left edge
-            prelimarray[thislocation] = Intensity * (initialspacingx / 2 + 1) * initialspacingy;
-          } else if (i % (nx - 1) != 0 && j == 0){
-	    //bottom edge
-	    prelimarray[thislocation] = Intensity * (initialspacingy / 2 + 1) * initialspacingx;
-	  } else if (i % (nx - 1) != 0) {
-            // top edge
-            prelimarray[thislocation] = Intensity * (initialspacingy / 2) * initialspacingx;
           } else if (j % (ny - 1) != 0){
-	    //right edge
-	    prelimarray[thislocation] = Intensity * (initialspacingx / 2) * initialspacingy;
-	  }
+            // left or right edge
+            prelimarray[thislocation] = Intensity * (initialspacingx / 2 + 1 / 2) * initialspacingy;
+          } else if (i % (nx - 1) != 0){
+	    //bottom or top edge
+	    prelimarray[thislocation] = Intensity * (initialspacingy / 2 + 1 / 2) * initialspacingx;
+	  } 
 	  else {
             // corner case
-            if (i == 0 && j == 0) {
-              // bottom left corner
-              prelimarray[thislocation] = Intensity * (initialspacingx / 2 + 1) * (initialspacingy / 2 + 1);
-            } else if (i == 0) {
-              //top left
-              prelimarray[thislocation] = Intensity * (initialspacingx / 2 + 1) * initialspacingy / 2;
-            } else if (j == 0){
-	      //bottom right
-	      prelimarray[thislocation] = Intensity * (initialspacingy / 2 + 1) * initialspacingx / 2;
-	    }
-	    else {
-              // top right
-              prelimarray[thislocation] = Intensity * (initialspacingx * initialspacingy) / 4;
-            }
+	    prelimarray[thislocation] = Intensity * ((initialspacingx + 1) * (initialspacingy + 1)) / 4;
           }
         }
       }
@@ -612,8 +596,8 @@ int main(int argc, char *argv[])
 
       count0 *= pow(freqcgs, 3) / (nxmin * nymin);
 
-      printf("%g\n",Iavg);
-      printf("%g\n", count0);
+      printf("and the average is: %g\n",Iavg * nx * ny * scale);
+      printf("or in normal units: %g\n", count0);
 
       // Print calculated total intensity for debug
 #if DEBUG
@@ -722,8 +706,8 @@ int main(int argc, char *argv[])
         else if (i <= 3*newspacingx){
           I1 = image[(i-newspacingx)*ny+j];
           I2 = image[(i+newspacingx)*ny+j];
-          I3 = image[(i-newspacingx+previousspacingx)*ny+j];
-          I4 = image[(i-newspacingx+2*previousspacingx)*ny+j];
+          I3 = image[(i+newspacingx+previousspacingx)*ny+j];
+          I4 = image[(i+newspacingx+2*previousspacingx)*ny+j];
 
           err_abs = (I1-2*I2+I3) / (8 * Iavg);
           err_rel = (I1-2*I2+I3) / (4 * (I1 + I2));
@@ -733,7 +717,7 @@ int main(int argc, char *argv[])
           I1 = image[(i-newspacingx-previousspacingx)*ny+j];
           I2 = image[(i-newspacingx)*ny+j];
           I3 = image[(i+newspacingx)*ny+j];
-          I4 = image[(i-newspacingx+previousspacingx)*ny+j];
+          I4 = image[(i+newspacingx+previousspacingx)*ny+j];
 
           err_abs = (I4-I3-I2+I1) / (8 * Iavg);
           err_rel = (I4-I3-I2+I1) / (4 * (I2 + I3));
