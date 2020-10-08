@@ -95,7 +95,7 @@ int main(int argc, char *argv[])
   
   //  printf("%g\n",log2((params.nx - params.nx % 2)/(params.nx_min - params.nx_min % 2))+1);
 
-  int refine_level = params.nx_min > 1 ? log2((params.nx - params.nx % 2)/(params.nx_min - params.nx_min % 2))+1 : log2((params.ny - params.ny % 2)/(params.ny_min - params.ny_min % 2))+1;
+  int refine_level = params.nx_min > 1 ? log2((params.nx - params.nx % 2)/(params.nx_min -1))+1 : log2((params.ny - params.ny % 2)/(params.ny_min - 1))+1;
   printf("made it\n");
   //Requires that at least nxmin or nymin is greater than 1
   // INTERNAL SIZE.  If nx or ny is even, compute an extra row/column to use the 2^N+1 scheme
@@ -898,6 +898,14 @@ int main(int argc, char *argv[])
 
     // TODO print only for "real" pixels
     print_image_stats(image, imageS, nx, ny, params, scale);
+    
+    FILE *fp;
+    fp = fopen ("interpvec.txt", "w");
+    //  fprintf(fp,"%i\n",total_interpolated2);
+    for (int i = 0; i < nx * ny; i++) {
+      fprintf (fp, "%i\n", interp_flag[i]);
+    }
+    fclose (fp);
 
     // don't dump if we've been asked to quench output. useful for batch jobs
     // like when fitting light curve fluxes
