@@ -20,11 +20,11 @@ int integrate_emission(struct of_traj *traj, int nstep,
 
 // Needed for slow light.  TODO extend above to use instead
 int evolve_N(double Xi[NDIM],double Kconi[NDIM],
-    double Xhalf[NDIM], double Kconhalf[NDIM],
-    double Xf[NDIM],double Kconf[NDIM],
-    double dlam,
-    double complex N_coord[NDIM][NDIM],
-    double *tauF, Params *params);
+	     double Xhalf[NDIM], double Kconhalf[NDIM],
+	     double Xf[NDIM],double Kconf[NDIM],
+	     double dlam,
+	     double complex N_coord[NDIM][NDIM],
+	     double *tauF, Params *params, int cut_emission);
 double approximate_solve (double Ii, double ji, double ki, double jf, double kf,
                    double dl, double *tau);
 
