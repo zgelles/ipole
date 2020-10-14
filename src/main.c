@@ -842,8 +842,6 @@ int main(int argc, char *argv[])
             err_abs = (I4-I3-I2+I1+I8-I7-I6+I5) / (16 * Iavg);
             err_rel = (I4-I3-I2+I1+I8-I7-I6+I5) / (4 * (I2+I3+I7+I8));
 
-
-        if (I1 == 0 || I2 == 0 || I3 == 0 ||I4 == 0 || I5 == 0 || I6 == 0 || I7 == 0 || I8 == 0) printf("%i\n", i);
         }
 
             // Refinement criterion thanks to Zack Gelles: absolute & relative error of
