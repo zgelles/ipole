@@ -15,8 +15,8 @@
 
 // Top-level functions for solving emission
 int integrate_emission(struct of_traj *traj, int nstep,
-                    double *Intensity, double *Tau, double *tauF,
-                    double complex N_coord[NDIM][NDIM], Params *params);
+		       double *Intensity, double *Tau, double *tauF,
+		       double complex N_coord[NDIM][NDIM], Params *params, int saveunpol, int savepol);
 
 // Needed for slow light.  TODO extend above to use instead
 int evolve_N(double Xi[NDIM],double Kconi[NDIM],

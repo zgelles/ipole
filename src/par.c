@@ -73,6 +73,8 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
   // Decent guesses for e.g. Zack Gelles's sample image.
   params->refine_rel = 1.e-1;
   params->refine_abs = 1.e-5;
+  params->refine_relpol = 1.e-1;
+  params->refine_abspol = 1.e-5;
   // Disable these unless requested
   params->refine_cut = 0.0;
   params->nearest_neighbor = 0;
@@ -156,6 +158,8 @@ void try_set_parameter(const char *word, const char *value, Params *params) {
   set_by_word_val(word, value, "ny_min", &(params->ny_min), TYPE_INT);
   set_by_word_val(word, value, "refine_abs", &(params->refine_abs), TYPE_DBL);
   set_by_word_val(word, value, "refine_rel", &(params->refine_rel), TYPE_DBL);
+  set_by_word_val(word, value, "refine_abspol", &(params->refine_abspol), TYPE_DBL);
+  set_by_word_val(word, value, "refine_relpol", &(params->refine_relpol), TYPE_DBL);
   set_by_word_val(word, value, "refine_cut", &(params->refine_cut), TYPE_DBL);
   set_by_word_val(word, value, "use_nearest_neighbor", &(params->nearest_neighbor), TYPE_INT);
 

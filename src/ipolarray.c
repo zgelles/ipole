@@ -51,8 +51,8 @@ void complex_tetrad_to_coord_rank2(double complex T_tetrad[NDIM][NDIM],
  * Returns flag indicating at least one step either used a questionable tetrad, or produced a NaN value
  */
 int integrate_emission(struct of_traj *traj, int nsteps,
-                    double *Intensity, double *Tau, double *tauF,
-                    double complex N_coord[NDIM][NDIM], Params *params)
+		       double *Intensity, double *Tau, double *tauF,
+		       double complex N_coord[NDIM][NDIM], Params *params, int saveunpol, int savepol)
 {
   //fprintf(stderr, "Begin integrate emission\n");
   // Initialize
