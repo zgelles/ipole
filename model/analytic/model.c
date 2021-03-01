@@ -25,9 +25,11 @@ static double RHO_unit_in = 0;
 
 static double MBH;
 static int model;
+double alpha;
+double spin;
 
 // e.g. parameterization from GRRT paper
-double A, alpha, height, l0, freqcgs;
+double A, height, l0, freqcgs;
 double r_isco;
 
 /**
@@ -65,6 +67,8 @@ void try_set_model_parameter(const char *word, const char *value)
   // Normal ipole pulls this, but we also need it for the GRRT problems
   // and this is easier than grabbing it from the 'params' struct
   set_by_word_val(word, value, "freqcgs", &freqcgs, TYPE_DBL);
+  set_by_word_val(word, value, "spin", &spin, TYPE_DBL);
+  set_by_word_val(word, value, "alpha", &alpha, TYPE_DBL);
 }
 
 /**
@@ -80,35 +84,36 @@ void init_model(double *tA, double *tB)
 
   if (model == 1) {
     A = 0;
-    alpha = -3;
+    //alpha = -3;
     height = 0;
     l0 = 0;
-    a = 0.9;
+    //a = 0.9;
   } else if (model == 2) {
     A = 0;
-    alpha = -2;
+    //alpha = -2;
     height = 0;
     l0 = 1;
-    a = 0;
+    //a = 0;
   } else if (model == 3) {
     A = 0;
-    alpha = 0;
+    //alpha = 0;
     height = 10./3;
     l0 = 1;
-    a = 0.9;
+    //a = 0.9;
   } else if (model == 4) {
     A = 1.e5;
-    alpha = 0;
+    //alpha = 0;
     height = 10./3;
     l0 = 1;
-    a = 0.9;
+    //a = 0.9;
   } else if (model == 5) {
     A = 1.e6;
-    alpha = 0;
+    //alpha = 0;
     height = 100./3;
     l0 = 1;
-    a = 0.9;
+    //a = 0.9;
   }
+  a = spin;
 
   // We already set stuff from parameters, so set_units here
   set_units();

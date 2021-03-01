@@ -1,0 +1,49 @@
+# Analytic model options
+
+outfile semitest.h5
+
+# Model to use: see model.c, uses Gold et. al (2020) tests with some modifications
+model 5 
+spin 0.9375
+alpha 0
+
+# Must ask the model for emissivities
+emission_type 10
+
+# Camera location
+# Note rcam is farther than ipole's usual
+rcam 1e6
+thetacam 17
+phicam 0
+
+
+# Camera FOV in r_g
+dx 60
+dy 60
+# fovx_dsource 200
+# fovy_dsource 200
+
+target_nturns -1 
+#means refine on total intensity
+
+# Image size
+nx 129
+ny 129
+
+nx_min 33
+ny_min 33
+
+refine_rel 0.001
+refine_abs 0.001
+refine_cut -1
+
+use_nearest_neighbors 0
+
+# Distance to source in pc
+dsource 7.78e3
+
+# Standard frequency nu_p
+freqcgs 230.e9
+
+# MBH in solar masses
+MBH 4.e6
