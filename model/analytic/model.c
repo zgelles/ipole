@@ -15,6 +15,7 @@ double B_unit;
 double Te_unit;
 // This one is useful
 double RHO_unit;
+double sourceinv;
 
 // Model parameters: public
 double rmax_geo = 1000.0;
@@ -26,6 +27,7 @@ static double RHO_unit_in = 0;
 static double MBH;
 static int model;
 double alpha;
+double beta;
 double spin;
 
 // e.g. parameterization from GRRT paper
@@ -69,6 +71,8 @@ void try_set_model_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "freqcgs", &freqcgs, TYPE_DBL);
   set_by_word_val(word, value, "spin", &spin, TYPE_DBL);
   set_by_word_val(word, value, "alpha", &alpha, TYPE_DBL);
+  set_by_word_val(word, value, "beta", &beta, TYPE_DBL);
+  set_by_word_val(word, value, "sourceinv", &sourceinv, TYPE_DBL);
 }
 
 /**
@@ -83,37 +87,38 @@ void init_model(double *tA, double *tB)
   hslope = 1.0;
 
   if (model == 1) {
-    A = 0;
+    //A = 0;
     //alpha = -3;
     height = 0;
     l0 = 0;
     //a = 0.9;
   } else if (model == 2) {
-    A = 0;
+    //A = 0;
     //alpha = -2;
     height = 0;
     l0 = 1;
     //a = 0;
   } else if (model == 3) {
-    A = 0;
+    //A = 0;
     //alpha = 0;
     height = 10./3;
     l0 = 1;
     //a = 0.9;
   } else if (model == 4) {
-    A = 1.e5;
+    //A = 1.e5;
     //alpha = 0;
     height = 10./3;
     l0 = 1;
     //a = 0.9;
   } else if (model == 5) {
-    A = 1.e6;
-    //alpha = 0;
+    //A = 1;
+    alpha = 0;
     height = 100./3;
     l0 = 1;
     //a = 0.9;
   }
   a = spin;
+  A = sourceinv;
 
   // We already set stuff from parameters, so set_units here
   set_units();
@@ -200,7 +205,7 @@ void get_model_jk(double X[NDIM], double Kcon[NDIM], double *jnuinv, double *knu
   double nu = get_fluid_nu(Kcon, Ucov);
 
   *jnuinv = fmax( n * pow(nu / freqcgs, -alpha) / pow(nu, 2), 0);
-  *knuinv = fmax( (A * n * pow(nu / freqcgs, -(2.5 + alpha)) + 1.e-54) * nu, 0);
+  *knuinv = fmax( (A * n * pow(nu / freqcgs, -(beta + alpha)) + 1.e-54) * nu, 0);
 }
 
 void get_model_jar(double X[NDIM], double Kcon[NDIM],
