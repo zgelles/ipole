@@ -7,8 +7,9 @@ model 5
 spin 0.9375
 alpha 0
 beta 0
-rho_unit 1.9e-19
-sourceinv = 1.0
+rho_unit 1.1e-18
+sourceinv 1.0
+rscale 4.
 
 # Must ask the model for emissivities
 emission_type 10

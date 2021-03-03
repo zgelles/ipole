@@ -16,6 +16,7 @@ double Te_unit;
 // This one is useful
 double RHO_unit;
 double sourceinv;
+double rscale;
 
 // Model parameters: public
 double rmax_geo = 1000.0;
@@ -73,6 +74,7 @@ void try_set_model_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "alpha", &alpha, TYPE_DBL);
   set_by_word_val(word, value, "beta", &beta, TYPE_DBL);
   set_by_word_val(word, value, "sourceinv", &sourceinv, TYPE_DBL);
+  set_by_word_val(word, value, "rscale", &rscale, TYPE_DBL);
 }
 
 /**
@@ -190,7 +192,7 @@ double get_model_ne(double X[NDIM])
   // Matter model defined in Gold et al 2020 section 3
   double r, th;
   bl_coord(X, &r, &th);
-  double n_exp = 1./2 * (pow(r/10, 2) + pow(height * cos(th), 2));
+  double n_exp = 1./2 * (pow(r/rscale, 2) + pow(height * cos(th), 2));
   // Cutoff when result will be ~0
   return ( n_exp < 200 ) ? RHO_unit * exp(-n_exp) : 0;
 }
