@@ -69,6 +69,8 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
   params->restart_int = -1.;
   
   params->target_nturns = -1;
+  params->ringmax = -1;
+  params->polrefine = 0;
 
   params->nx_min = -1;
   params->ny_min = -1;
@@ -162,6 +164,8 @@ void try_set_parameter(const char *word, const char *value, Params *params) {
   set_by_word_val(word, value, "use_nearest_neighbor", &(params->nearest_neighbor), TYPE_INT);
 
   set_by_word_val(word, value, "target_nturns", &(params->target_nturns), TYPE_INT);
+  set_by_word_val(word, value, "ringmax", &(params->ringmax), TYPE_INT);
+  set_by_word_val(word, value, "polrefine", &(params->polrefine), TYPE_INT);
 
   set_by_word_val(word, value, "eps", &(params->eps), TYPE_DBL);
   set_by_word_val(word, value, "maxnstep", &(params->maxnstep), TYPE_INT);
@@ -169,7 +173,9 @@ void try_set_parameter(const char *word, const char *value, Params *params) {
   set_by_word_val(word, value, "xoff", &(params->xoff), TYPE_DBL);
   set_by_word_val(word, value, "yoff", &(params->yoff), TYPE_DBL);
 
-  set_by_word_val(word, value, "outfile", (void *)(params->outf), TYPE_STR);
+  set_by_word_val(word, value, "outfiletot", (void *)(params->outf), TYPE_STR);
+  set_by_word_val(word, value, "outfile0", (void *)(params->outf0), TYPE_STR);
+  set_by_word_val(word, value, "outfile1", (void *)(params->outf1), TYPE_STR);
 
   // for slow light
   set_by_word_val(word, value, "img_cadence", &(params->img_cadence), TYPE_DBL);

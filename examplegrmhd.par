@@ -43,7 +43,11 @@ fovy_dsource 80
 freqcgs 230.e9
 
 # Output image name. HDF5 format
-outfile testout.h5
+outfiletot testouttotnew.h5
+outfile0 testout0new.h5
+outfile1 testout1new.h5
+ringmax 1
+polrefine 0	
 
 # Add a ppm version with a default name. Legacy purposes
 add_ppm 0

@@ -51,8 +51,8 @@ void complex_tetrad_to_coord_rank2(double complex T_tetrad[NDIM][NDIM],
  * Returns flag indicating at least one step either used a questionable tetrad, or produced a NaN value
  */
 int integrate_emission(struct of_traj *traj, int nsteps,
-                    double *Intensity, double Intensity6[7], double *Tau, double *tauF,
-                    double complex N_coord[NDIM][NDIM], Params *params)
+                    double *Intensity, double *Tau, double *tauF,
+                    double complex N_coord[NDIM][NDIM], Params *params, int targetn)
 {
   //fprintf(stderr, "Begin integrate emission");
   // Initialize
@@ -72,11 +72,11 @@ int integrate_emission(struct of_traj *traj, int nsteps,
     struct of_traj tf = traj[nstep-1];
 
     // Parallel transport polarization vector if necessary
-    // if (!params->only_unpolarized) {
-    //   double complex Nh[NDIM][NDIM];
-    //   push_polar(ti.X, ti.X, ti.Xhalf, ti.Kcon, ti.Kcon, ti.Kconhalf, N_coord, N_coord, Nh, 0.5 * ti.dl);
-    //   push_polar(ti.X, ti.Xhalf, tf.X, ti.Kcon, ti.Kconhalf, tf.Kcon, N_coord, Nh, N_coord, ti.dl);
-    // }
+    if (!params->only_unpolarized) {
+      double complex Nh[NDIM][NDIM];
+      push_polar(ti.X, ti.X, ti.Xhalf, ti.Kcon, ti.Kcon, ti.Kconhalf, N_coord, N_coord, Nh, 0.5 * ti.dl);
+      push_polar(ti.X, ti.Xhalf, tf.X, ti.Kcon, ti.Kconhalf, tf.Kcon, N_coord, Nh, N_coord, ti.dl);
+    }
 
 #if THIN_DISK
     if (thindisk_region(ti.X, tf.X)) {
@@ -115,32 +115,26 @@ int integrate_emission(struct of_traj *traj, int nsteps,
       get_jkinv(ti.X, ti.Kcon, &ji, &ki, params);
       get_jkinv(tf.X, tf.Kcon, &jf, &kf, params);
 
-      *Intensity = approximate_solve(*Intensity, ji, ki, jf, kf, ti.dl, Tau);
-      Intensity6[0] = *Intensity;
-
-      for (int ijk=0; ijk<4; ijk++){
-      if (ti.nturns == ijk){
-	       Intensity6[ijk+1] = approximate_solve(Intensity6[ijk+1], ji, ki, jf, kf, ti.dl, Tau);
+      if (targetn==-1 || ti.nturns==targetn)
+        *Intensity = approximate_solve(*Intensity, ji, ki, jf, kf, ti.dl, Tau);
+      else{
+        *Intensity = approximate_solve(*Intensity, 0, ki, 0, kf, ti.dl, Tau);
       }
-      else {
-	       Intensity6[ijk+1] = approximate_solve(Intensity6[ijk+1], 0, ki, 0, kf, ti.dl, Tau);
-      }
-    }
 
 
- //      ZERO_EMISSION = 0;
- //      if (ti.nturns != params->target_nturns) {
-	// ZERO_EMISSION = 1;
- //      }
+  ZERO_EMISSION = 0;
+  if (ti.nturns != targetn && targetn != -1) {
+	ZERO_EMISSION = 1;
+}
       
       
-      // Solve polarized transport
-     //  if (!params->only_unpolarized) {
-     //    sflag |= evolve_N(ti.X, ti.Kcon,
-			  // ti.Xhalf, ti.Kconhalf,
-			  // tf.X, tf.Kcon,
-			  // ti.dl, N_coord, tauF, params, ZERO_EMISSION);
-     //  }
+      //Solve polarized transport
+      if (!params->only_unpolarized) {
+        sflag |= evolve_N(ti.X, ti.Kcon,
+			  ti.Xhalf, ti.Kconhalf,
+			  tf.X, tf.Kcon,
+			  ti.dl, N_coord, tauF, params, ZERO_EMISSION);
+      }
     }
 
     // smoosh together all the flags we hit along a geodesic

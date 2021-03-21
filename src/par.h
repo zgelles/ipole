@@ -24,6 +24,9 @@ typedef struct params_t {
   double eps;
   int maxnstep;
 
+  int ringmax; //max ring (-1 for tot, 0,1, etc.)
+  int polrefine; //0 for I, 1 for U, etc.
+
   int add_ppm;          // Whether to additionally make a ppm image of I
   int qu_conv;          // Convention for Stokes Q,U.  0 (default) -> East of North (observer).  1 -> North of West
   int quench_output;    // Quench output, i.e. "quench" argument
@@ -36,6 +39,8 @@ typedef struct params_t {
 
   const char dump[STRLEN];
   const char outf[STRLEN];
+  const char outf0[STRLEN];
+  const char outf1[STRLEN];
 
   // for picking out rings
   int target_nturns;
@@ -58,6 +63,8 @@ typedef struct params_t {
   int trace_stride;
   int trace_i, trace_j;
   const char trace_outf[STRLEN];
+  const char trace_outf0[STRLEN];
+  const char trace_outf1[STRLEN];
 } Params;
 
 // modify this to set default values

@@ -33,9 +33,9 @@
 // explained in parameter parsing.
 void get_pixel(size_t i, size_t j, int nx, int ny, double Xcam[NDIM], Params params,
                double fovx, double fovy, double freq, int only_intensity, double scale,
-               double *Intensity, double *Intensity6, double *Tau, double *tauF);
+               double *Intensity, double *Intensity6, double *Is6, double *Q6, double *U6, double *V6, double *Tau, double *tauF, int targetn);
 void save_pixel(double *image, double *imageS, double *taus, size_t i, size_t j, size_t nx, size_t ny, int only_unpol,
-                double Intensity, double *Intensity6, double freqcgs, double Tau, double tauF);
+                double Intensity, double Is, double Qs, double Us, double Vs, double freqcgs, double Tau, double tauF);
 void print_image_stats(double *image, double *imageS, size_t nx, size_t ny, Params params, double scale);
 void save_pixelTransfer(double *image, double *imageS, double *taus,
                         size_t iold, size_t jold, size_t inew, size_t jnew, size_t nx, size_t ny, int only_intensity); //nearest neighbor saving
@@ -98,7 +98,9 @@ int main(int argc, char *argv[])
 
   params.only_unpolarized=0;
 
-  int refineindex = params.target_nturns+1; //0 refines on total intensity, 1 on n=0, 2 on n=1, 3 on n=3, etc.
+  int refineindex = params.target_nturns+1; //0 refines on total, 1 on n=0, 2 on n=1, 3 on n=3, etc.
+  int polrefine = params.polrefine; //0 refines on I, 1 on Q, 2 on U, 3 on V, and 4 on tau
+  int ringmax = params.ringmax; //means we get tot,0,1
 
   //Requires that at least nxmin or nymin is greater than 1
   // INTERNAL SIZE.  If nx or ny is even, compute an extra row/column to use the 2^N+1 scheme
@@ -173,15 +175,16 @@ int main(int argc, char *argv[])
     fprintf(stderr,"Resolution: %dx%d\n", params.nx, params.ny);
   }
 
-  double *taus = calloc(nx*ny, sizeof(*taus));
-  double *image = calloc(nx*ny, sizeof(*image));
-  double *imageS = NULL;
+  double (*taus)[nx*ny] = calloc(nx*ny*(ringmax+2), sizeof(*taus));
+  double (*image)[nx*ny] = calloc(nx*ny*(ringmax+2), sizeof(*image));
+  int lenimageS = nx*ny*NIMG;
+  double (*imageS)[lenimageS] = NULL;
   if (taus == NULL || image == NULL) {
     fprintf(stderr, "Could not allocate image memory!");
     exit(-1);
   }
   if(!params.only_unpolarized) {
-    imageS = calloc(nx*ny*NIMG, sizeof(*imageS));
+    imageS = calloc(nx*ny*NIMG*(ringmax+2), sizeof(*imageS));
     if (imageS == NULL) {
       fprintf(stderr, "Could not allocate image memory!");
       exit(-1);
@@ -439,27 +442,27 @@ int main(int argc, char *argv[])
 
         if (do_output) {
 
-          // image, imageS, taus
+          // image[refineindex], imageS[refineindex], taus[refineindex]
           for (int i=0; i<nx; ++i) {
             for (int j=0; j<ny; ++j) {
 
               int pxidx = imgindex(k,i,j,nx,ny);
               int pstepidx = imgindex(dimage[pxidx].nstep,i,j,nx,ny);
 
-              image[i*ny+j] = dimage[pxidx].intensity * pow(freqcgs, 3.);
-              taus[i*ny+j] = dimage[pxidx].tau;
+              image[refineindex][i*ny+j] = dimage[pxidx].intensity * pow(freqcgs, 3.);
+              taus[refineindex][i*ny+j] = dimage[pxidx].tau;
 
               if (! params.only_unpolarized) {
                 double Stokes_I, Stokes_Q, Stokes_U, Stokes_V;
                 project_N(dtraj[pstepidx].X, dtraj[pstepidx].Kcon, dimage[pxidx].N_coord, &Stokes_I, &Stokes_Q, &Stokes_U, &Stokes_V, params.rotcam);
-                imageS[(i*ny+j)*NIMG+0] = Stokes_I * pow(freqcgs, 3.);
-                imageS[(i*ny+j)*NIMG+1] = Stokes_Q * pow(freqcgs, 3.);
-                imageS[(i*ny+j)*NIMG+2] = Stokes_U * pow(freqcgs, 3.);
-                imageS[(i*ny+j)*NIMG+3] = Stokes_V * pow(freqcgs, 3.);
-                imageS[(i*ny+j)*NIMG+4] = dimage[pxidx].tauF;
+                imageS[refineindex][(i*ny+j)*NIMG+0] = Stokes_I * pow(freqcgs, 3.);
+                imageS[refineindex][(i*ny+j)*NIMG+1] = Stokes_Q * pow(freqcgs, 3.);
+                imageS[refineindex][(i*ny+j)*NIMG+2] = Stokes_U * pow(freqcgs, 3.);
+                imageS[refineindex][(i*ny+j)*NIMG+3] = Stokes_V * pow(freqcgs, 3.);
+                imageS[refineindex][(i*ny+j)*NIMG+4] = dimage[pxidx].tauF;
                 if (params.qu_conv == 0) {
-                  imageS[(i*ny+j)*NIMG+1] *= -1;
-                  imageS[(i*ny+j)*NIMG+2] *= -1;
+                  imageS[refineindex][(i*ny+j)*NIMG+1] *= -1;
+                  imageS[refineindex][(i*ny+j)*NIMG+2] *= -1;
                 }
               }
             }
@@ -468,7 +471,7 @@ int main(int argc, char *argv[])
           //fprintf(stderr, "saving image %d at t = %g\n", k, target_times[k]);
           char dfname[256];
           snprintf(dfname, 255, params.outf, target_times[k]);
-          dump(image, imageS, taus, dfname, scale, Xcam, fovx, fovy, nx, ny, &params, params.only_unpolarized);
+          dump(image[refineindex], imageS[refineindex], taus[refineindex], dfname, scale, Xcam, fovx, fovy, nx, ny, &params, params.only_unpolarized);
           valid_images[k] = 0;
           nopenimgs--;
         }
@@ -544,19 +547,34 @@ int main(int argc, char *argv[])
 	  thislocation = j / initialspacingy;
 	}
 	
+
         double Intensity = 0;
         double Intensity6[7];
         for (int ijk=0; ijk<7; ++ijk) Intensity6[ijk] = 0.;
+
+        double Is6[7];
+        for (int ijk=0; ijk<7; ++ijk) Is6[ijk] = 0.;
+
+        double Q6[7];
+        for (int ijk=0; ijk<7; ++ijk) Q6[ijk] = 0.;
+
+        double U6[7];
+        for (int ijk=0; ijk<7; ++ijk) U6[ijk] = 0.;
+
+        double V6[7];
+        for (int ijk=0; ijk<7; ++ijk) V6[ijk] = 0.;
+
         double Tau = 0, tauF = 0;
 
-        get_pixel(i, j, params.nx, params.ny, Xcam, params, fovx, fovy, freq,
-                   params.only_unpolarized, scale, &Intensity, &Intensity6[0], &Tau, &tauF);
-
-        save_pixel(image, imageS, taus, i, j, nx, ny, params.only_unpolarized, Intensity, Intensity6, freqcgs, Tau, tauF);
+        for (int ijk=0;ijk<ringmax+2;ijk++){
+          get_pixel(i, j, params.nx, params.ny, Xcam, params, fovx, fovy, freq,
+                   params.only_unpolarized, scale, &Intensity, &Intensity6[ijk], &Is6[ijk], &Q6[ijk], &U6[ijk], &V6[ijk], &Tau, &tauF, ijk-1);
+          save_pixel(image[ijk], imageS[ijk], taus[ijk], i, j, nx, ny, params.only_unpolarized, Intensity6[ijk], Is6[ijk], Q6[ijk], U6[ijk], V6[ijk], freqcgs, Tau, tauF);
+      }
 
         interp_flag[i*ny+j] = 0;
 
-  double Intensityr = Intensity6[refineindex]; // the quantity we want to refine on
+  double Intensityr = Is6[refineindex]; // the quantity we want to refine on
   count0 += Intensityr;
 
         if (refine_level > 1) {
@@ -622,6 +640,11 @@ int main(int argc, char *argv[])
 #pragma omp parallel for schedule(dynamic,1) collapse(2)
       for (int i = 0; i < nx; i += newspacingx) {
         for (int j = 0; j < ny; j += newspacingy) {
+      for (int i=0;i<nx;i++){
+      for (int j=0;j<ny;j++){
+      }
+    }
+
           if (j == 0)
             fprintf(stderr, "%d ", i);
 
@@ -629,6 +652,18 @@ int main(int argc, char *argv[])
 
           double Intensity6[7];
           for (int ijk=0; ijk<7; ++ijk) Intensity6[ijk] = 0.;
+
+          double Is6[7];
+          for (int ijk=0; ijk<7; ++ijk) Is6[ijk] = 0.;
+
+          double Q6[7];
+          for (int ijk=0; ijk<7; ++ijk) Q6[ijk] = 0.;
+
+          double U6[7];
+          for (int ijk=0; ijk<7; ++ijk) U6[ijk] = 0.;
+
+          double V6[7];
+          for (int ijk=0; ijk<7; ++ijk) V6[ijk] = 0.;
 
           double Is = 0, Qs = 0, Us = 0, Vs = 0;
           double Tau = 0, tauF = 0;
@@ -645,29 +680,29 @@ int main(int argc, char *argv[])
             // pixel lies on pre-existing column
 
         if (ny-j-1 <= 3*newspacingy){
-          I1 = imageS[(i*ny+j-newspacingy-2*previousspacingy)*NIMG+refineindex];
-          I2 = imageS[(i*ny+j-newspacingy-previousspacingy)*NIMG+refineindex];
-          I3 = imageS[(i*ny+j-newspacingy)*NIMG+refineindex];
-          I4 = imageS[(i*ny+j+newspacingy)*NIMG+refineindex];
+          I1 = imageS[refineindex][(i*ny+j-newspacingy-2*previousspacingy)*NIMG+polrefine];
+          I2 = imageS[refineindex][(i*ny+j-newspacingy-previousspacingy)*NIMG+polrefine];
+          I3 = imageS[refineindex][(i*ny+j-newspacingy)*NIMG+polrefine];
+          I4 = imageS[refineindex][(i*ny+j+newspacingy)*NIMG+polrefine];
 
           err_abs = (I4-2*I3+I2) / (8 * Iavg);
           err_rel = (I4-2*I3+I2) / (4 * (I3 + I4));
         }
         else if(j <= 3*newspacingy){
-          I1 = imageS[(i*ny+j-newspacingy)*NIMG+refineindex];
-          I2 = imageS[(i*ny+j+newspacingy)*NIMG+refineindex];
-          I3 = imageS[(i*ny+j+newspacingy+previousspacingy)*NIMG+refineindex];
-          I4 = imageS[(i*ny+j+newspacingy+2*previousspacingy)*NIMG+refineindex];
+          I1 = imageS[refineindex][(i*ny+j-newspacingy)*NIMG+polrefine];
+          I2 = imageS[refineindex][(i*ny+j+newspacingy)*NIMG+polrefine];
+          I3 = imageS[refineindex][(i*ny+j+newspacingy+previousspacingy)*NIMG+polrefine];
+          I4 = imageS[refineindex][(i*ny+j+newspacingy+2*previousspacingy)*NIMG+polrefine];
 
           err_abs = (I1-2*I2+I3) / (8 * Iavg);
           err_rel = (I1-2*I2+I3) / (4*(I1+I2));
         }
         
         else{
-          I1 = imageS[(i*ny+j-newspacingy-previousspacingy)*NIMG+refineindex];
-          I2 = imageS[(i*ny+j-newspacingy)*NIMG+refineindex];
-          I3 = imageS[(i*ny+j+newspacingy)*NIMG+refineindex];
-          I4 = imageS[(i*ny+j+newspacingy+previousspacingy)*NIMG+refineindex];
+          I1 = imageS[refineindex][(i*ny+j-newspacingy-previousspacingy)*NIMG+polrefine];
+          I2 = imageS[refineindex][(i*ny+j-newspacingy)*NIMG+polrefine];
+          I3 = imageS[refineindex][(i*ny+j+newspacingy)*NIMG+polrefine];
+          I4 = imageS[refineindex][(i*ny+j+newspacingy+previousspacingy)*NIMG+polrefine];
 
           err_abs = (I4-I3-I2+I1) / (8 * Iavg);
           err_rel = (I4-I3-I2+I1) / (4*(I2+I3));
@@ -679,10 +714,11 @@ int main(int argc, char *argv[])
                 && fabs(I1) > params.refine_cut) {
               // ray trace (tolerances exceeded)
 
-              get_pixel(i, j, params.nx, params.ny, Xcam, params, fovx, fovy, freq,
-                         params.only_unpolarized, scale, &Intensity, &Intensity6[0], &Tau, &tauF);
-
-              save_pixel(image, imageS, taus, i, j, nx, ny, params.only_unpolarized, Intensity, Intensity6, freqcgs, Tau, tauF);
+              for (int ijk=0;ijk<ringmax+2;ijk++){
+                get_pixel(i, j, params.nx, params.ny, Xcam, params, fovx, fovy, freq,
+                         params.only_unpolarized, scale, &Intensity, &Intensity6[ijk], &Is6[ijk], &Q6[ijk], &U6[ijk], &V6[ijk], &Tau, &tauF, ijk-1);
+                save_pixel(image[ijk], imageS[ijk], taus[ijk], i, j, nx, ny, params.only_unpolarized, Intensity6[ijk], Is6[ijk], Q6[ijk], U6[ijk], V6[ijk], freqcgs, Tau, tauF);
+              }
 
               interp_flag[i*ny+j] = 0;
                   
@@ -691,12 +727,13 @@ int main(int argc, char *argv[])
               interp_flag[i*ny+j] = 1;
               if (params.nearest_neighbor) {
                 // nearest interpolation
-                save_pixelTransfer(image, imageS, taus, i, j - newspacingy, i,
+                save_pixelTransfer(image[refineindex], imageS[refineindex], taus[refineindex], i, j - newspacingy, i,
                                     j, nx, ny, params.only_unpolarized);
                 // fills in with the nearest neighbor (choosing one side)
               } else {
                 // linear
-                lininterp2(image, imageS, taus, i, j - newspacingy, i,
+                for (int ijk=0;ijk<ringmax+2;ijk++)
+                  lininterp2(image[ijk], imageS[ijk], taus[ijk], i, j - newspacingy, i,
                             j + newspacingy, i, j, nx, ny, params.only_unpolarized);
               }
             }
@@ -704,30 +741,30 @@ int main(int argc, char *argv[])
             // pixel lies on pre-existing row
 
         if (nx-i-1 <= 3*newspacingx){
-          I1 = imageS[((i-newspacingx-2*previousspacingx)*ny+j)*NIMG+refineindex];
-          I2 = imageS[((i-newspacingx-previousspacingx)*ny+j)*NIMG+refineindex];
-          I3 = imageS[((i-newspacingx)*ny+j)*NIMG+refineindex];
-          I4 = imageS[((i+newspacingx)*ny+j)*NIMG+refineindex];
+          I1 = imageS[refineindex][((i-newspacingx-2*previousspacingx)*ny+j)*NIMG+polrefine];
+          I2 = imageS[refineindex][((i-newspacingx-previousspacingx)*ny+j)*NIMG+polrefine];
+          I3 = imageS[refineindex][((i-newspacingx)*ny+j)*NIMG+polrefine];
+          I4 = imageS[refineindex][((i+newspacingx)*ny+j)*NIMG+polrefine];
 
           err_abs = (I4-2*I3+I2) / (8 * Iavg);
           err_rel = (I4-2*I3+I2) / (4 * (I3 + I4));
         }
 
         else if (i <= 3*newspacingx){
-          I1 = imageS[((i-newspacingx)*ny+j)*NIMG+refineindex];
-          I2 = imageS[((i+newspacingx)*ny+j)*NIMG+refineindex];
-          I3 = imageS[((i+newspacingx+previousspacingx)*ny+j)*NIMG+refineindex];
-          I4 = imageS[((i+newspacingx+2*previousspacingx)*ny+j)*NIMG+refineindex];
+          I1 = imageS[refineindex][((i-newspacingx)*ny+j)*NIMG+polrefine];
+          I2 = imageS[refineindex][((i+newspacingx)*ny+j)*NIMG+polrefine];
+          I3 = imageS[refineindex][((i+newspacingx+previousspacingx)*ny+j)*NIMG+polrefine];
+          I4 = imageS[refineindex][((i+newspacingx+2*previousspacingx)*ny+j)*NIMG+polrefine];
 
           err_abs = (I1-2*I2+I3) / (8 * Iavg);
           err_rel = (I1-2*I2+I3) / (4 * (I1 + I2));
         }
 
         else{
-          I1 = imageS[((i-newspacingx-previousspacingx)*ny+j)*NIMG+refineindex];
-          I2 = imageS[((i-newspacingx)*ny+j)*NIMG+refineindex];
-          I3 = imageS[((i+newspacingx)*ny+j)*NIMG+refineindex];
-          I4 = imageS[((i+newspacingx+previousspacingx)*ny+j)*NIMG+refineindex];
+          I1 = imageS[refineindex][((i-newspacingx-previousspacingx)*ny+j)*NIMG+polrefine];
+          I2 = imageS[refineindex][((i-newspacingx)*ny+j)*NIMG+polrefine];
+          I3 = imageS[refineindex][((i+newspacingx)*ny+j)*NIMG+polrefine];
+          I4 = imageS[refineindex][((i+newspacingx+previousspacingx)*ny+j)*NIMG+polrefine];
 
           err_abs = (I4-I3-I2+I1) / (8 * Iavg);
           err_rel = (I4-I3-I2+I1) / (4 * (I2 + I3));
@@ -739,10 +776,12 @@ int main(int argc, char *argv[])
                 && fabs(I1) > params.refine_cut) {
               // ray trace (tolerances exceeded)
 
-              get_pixel(i, j, params.nx, params.ny, Xcam, params, fovx, fovy, freq,
-                         params.only_unpolarized, scale, &Intensity, &Intensity6[0], &Tau, &tauF);
+              for (int ijk=0;ijk<ringmax+2;ijk++){
+                get_pixel(i, j, params.nx, params.ny, Xcam, params, fovx, fovy, freq,
+                         params.only_unpolarized, scale, &Intensity, &Intensity6[ijk], &Is6[ijk], &Q6[ijk], &U6[ijk], &V6[ijk], &Tau, &tauF, ijk-1);
+                save_pixel(image[ijk], imageS[ijk], taus[ijk], i, j, nx, ny, params.only_unpolarized, Intensity6[ijk], Is6[ijk], Q6[ijk], U6[ijk], V6[ijk], freqcgs, Tau, tauF);
+              }
 
-              save_pixel(image, imageS, taus, i, j, nx, ny, params.only_unpolarized, Intensity, Intensity6, freqcgs, Tau, tauF);
 
               interp_flag[i*ny+j] = 0;
 
@@ -751,12 +790,13 @@ int main(int argc, char *argv[])
               interp_flag[i*ny+j] = 1;
               if (params.nearest_neighbor) {
                 // nearest interpolation
-                save_pixelTransfer(image, imageS, taus, i - newspacingx, j, i,
+                save_pixelTransfer(image[refineindex], imageS[refineindex], taus[refineindex], i - newspacingx, j, i,
                                     j, nx, ny, params.only_unpolarized);
                 // fills in with the nearest neighbor (choosing one side)
               } else {
                 // linear
-                lininterp2(image, imageS, taus, i - newspacingx, j,
+                for (int ijk=0;ijk<ringmax+2;ijk++)
+                  lininterp2(image[ijk], imageS[ijk], taus[ijk], i - newspacingx, j,
                             i + newspacingx, j, i, j, nx, ny, params.only_unpolarized);
               }
             }
@@ -770,15 +810,15 @@ int main(int argc, char *argv[])
         }
               
         else if (i<=3*newspacingx){
-            I1 = imageS[((i-newspacingx)*ny+j-newspacingy)*NIMG+refineindex];
-            I2 = imageS[((i+newspacingx)*ny+j+newspacingy)*NIMG+refineindex];
-            I3 = imageS[((i+newspacingx+previousspacingx)*ny+j+newspacingy+previousspacingy)*NIMG+refineindex];
-            I4 = imageS[((i+newspacingx+2*previousspacingx)*ny+j+newspacingy+2*previousspacingy)*NIMG+refineindex];
+            I1 = imageS[refineindex][((i-newspacingx)*ny+j-newspacingy)*NIMG+polrefine];
+            I2 = imageS[refineindex][((i+newspacingx)*ny+j+newspacingy)*NIMG+polrefine];
+            I3 = imageS[refineindex][((i+newspacingx+previousspacingx)*ny+j+newspacingy+previousspacingy)*NIMG+polrefine];
+            I4 = imageS[refineindex][((i+newspacingx+2*previousspacingx)*ny+j+newspacingy+2*previousspacingy)*NIMG+polrefine];
             
-            I5 = imageS[((i-newspacingx)*ny+j+newspacingy)*NIMG+refineindex];
-            I6 = imageS[((i+newspacingx)*ny+j-newspacingy)*NIMG+refineindex];
-            I7 = imageS[((i+newspacingx+previousspacingx)*ny+j-newspacingy-previousspacingy)*NIMG+refineindex];
-            I8 = imageS[((i+newspacingx+2*previousspacingx)*ny+j-newspacingy-2*previousspacingy)*NIMG+refineindex];
+            I5 = imageS[refineindex][((i-newspacingx)*ny+j+newspacingy)*NIMG+polrefine];
+            I6 = imageS[refineindex][((i+newspacingx)*ny+j-newspacingy)*NIMG+polrefine];
+            I7 = imageS[refineindex][((i+newspacingx+previousspacingx)*ny+j-newspacingy-previousspacingy)*NIMG+polrefine];
+            I8 = imageS[refineindex][((i+newspacingx+2*previousspacingx)*ny+j-newspacingy-2*previousspacingy)*NIMG+polrefine];
              
             err_abs = (I1-2*I2+I3+I5-2*I6+I7)/ (16 * Iavg);
             err_rel = (I1-2*I2+I3+I5-2*I6+I7)/(4 * (I1+I2+I5+I6));
@@ -787,60 +827,60 @@ int main(int argc, char *argv[])
                  
              
         else if (j<=3*newspacingy){
-            I1 = imageS[((i-newspacingx)*ny+j-newspacingy)*NIMG+refineindex];
-            I2 = imageS[((i+newspacingx)*ny+j+newspacingy)*NIMG+refineindex];
-            I3 = imageS[((i+newspacingx+previousspacingx)*ny+j+newspacingy+previousspacingy)*NIMG+refineindex];
-            I4 = imageS[((i+newspacingx+2*previousspacingx)*ny+j+newspacingy+2*previousspacingy)*NIMG+refineindex];
+            I1 = imageS[refineindex][((i-newspacingx)*ny+j-newspacingy)*NIMG+polrefine];
+            I2 = imageS[refineindex][((i+newspacingx)*ny+j+newspacingy)*NIMG+polrefine];
+            I3 = imageS[refineindex][((i+newspacingx+previousspacingx)*ny+j+newspacingy+previousspacingy)*NIMG+polrefine];
+            I4 = imageS[refineindex][((i+newspacingx+2*previousspacingx)*ny+j+newspacingy+2*previousspacingy)*NIMG+polrefine];
              
-            I5 = imageS[((i+newspacingx)*ny+j-newspacingy)*NIMG+refineindex];
-            I6 = imageS[((i-newspacingx)*ny+j+newspacingy)*NIMG+refineindex];
-            I7 = imageS[((i-newspacingx-previousspacingx)*ny+j+newspacingy+previousspacingy)*NIMG+refineindex];
-            I8 = imageS[((i-newspacingx-2*previousspacingx)*ny+j+newspacingy+2*previousspacingy)*NIMG+refineindex];
+            I5 = imageS[refineindex][((i+newspacingx)*ny+j-newspacingy)*NIMG+polrefine];
+            I6 = imageS[refineindex][((i-newspacingx)*ny+j+newspacingy)*NIMG+polrefine];
+            I7 = imageS[refineindex][((i-newspacingx-previousspacingx)*ny+j+newspacingy+previousspacingy)*NIMG+polrefine];
+            I8 = imageS[refineindex][((i-newspacingx-2*previousspacingx)*ny+j+newspacingy+2*previousspacingy)*NIMG+polrefine];
              
             err_abs = (I1-2*I2+I3+I5-2*I6+I7)/ (16 * Iavg);
             err_rel = (I1-2*I2+I3+I5-2*I6+I7)/(4 * (I1+I2+I5+I6));
         }
              
         else if (nx-i-1<=3*newspacingx){
-            I1 = imageS[((i-newspacingx-2*previousspacingx)*ny+j-newspacingy-2*previousspacingy)*NIMG+refineindex];
-            I2 = imageS[((i-newspacingx-previousspacingx)*ny+j-newspacingy-previousspacingy)*NIMG+refineindex];
-            I3 = imageS[((i-newspacingx)*ny+j-newspacingy)*NIMG+refineindex];
-            I4 = imageS[((i+newspacingx)*ny+j+newspacingy)*NIMG+refineindex];
+            I1 = imageS[refineindex][((i-newspacingx-2*previousspacingx)*ny+j-newspacingy-2*previousspacingy)*NIMG+polrefine];
+            I2 = imageS[refineindex][((i-newspacingx-previousspacingx)*ny+j-newspacingy-previousspacingy)*NIMG+polrefine];
+            I3 = imageS[refineindex][((i-newspacingx)*ny+j-newspacingy)*NIMG+polrefine];
+            I4 = imageS[refineindex][((i+newspacingx)*ny+j+newspacingy)*NIMG+polrefine];
              
-            I5 = imageS[((i-newspacingx-2*previousspacingx)*ny+j+newspacingy+2*previousspacingy)*NIMG+refineindex];
-            I6 = imageS[((i-newspacingx-previousspacingx)*ny+j+newspacingy+previousspacingy)*NIMG+refineindex];
-            I7 = imageS[((i-newspacingx)*ny+j+newspacingy)*NIMG+refineindex];
-            I8 = imageS[((i+newspacingx)*ny+j-newspacingy)*NIMG+refineindex];
+            I5 = imageS[refineindex][((i-newspacingx-2*previousspacingx)*ny+j+newspacingy+2*previousspacingy)*NIMG+polrefine];
+            I6 = imageS[refineindex][((i-newspacingx-previousspacingx)*ny+j+newspacingy+previousspacingy)*NIMG+polrefine];
+            I7 = imageS[refineindex][((i-newspacingx)*ny+j+newspacingy)*NIMG+polrefine];
+            I8 = imageS[refineindex][((i+newspacingx)*ny+j-newspacingy)*NIMG+polrefine];
              
             err_abs = (I4-2*I3+I2+I8-2*I7+I6) / (16 * Iavg);
             err_rel = (I4-2*I3+I2+I8-2*I7+I6) / (4 * (I3+I4+I7+I8));
         }
              
         else if (ny-j-1<=3*newspacingx){
-            I1 = imageS[((i-newspacingx-2*previousspacingx)*ny+j-newspacingy-2*previousspacingy)*NIMG+refineindex];
-            I2 = imageS[((i-newspacingx-previousspacingx)*ny+j-newspacingy-previousspacingy)*NIMG+refineindex];
-            I3 = imageS[((i-newspacingx)*ny+j-newspacingy)*NIMG+refineindex];
-            I4 = imageS[((i+newspacingx)*ny+j+newspacingy)*NIMG+refineindex];
+            I1 = imageS[refineindex][((i-newspacingx-2*previousspacingx)*ny+j-newspacingy-2*previousspacingy)*NIMG+polrefine];
+            I2 = imageS[refineindex][((i-newspacingx-previousspacingx)*ny+j-newspacingy-previousspacingy)*NIMG+polrefine];
+            I3 = imageS[refineindex][((i-newspacingx)*ny+j-newspacingy)*NIMG+polrefine];
+            I4 = imageS[refineindex][((i+newspacingx)*ny+j+newspacingy)*NIMG+polrefine];
              
-            I5 = imageS[((i+newspacingx+2*previousspacingx)*ny+j-newspacingy-2*previousspacingy)*NIMG+refineindex];
-            I6 = imageS[((i+newspacingx+previousspacingx)*ny+j-newspacingy-previousspacingy)*NIMG+refineindex];
-            I7 = imageS[((i+newspacingx)*ny+j-newspacingy)*NIMG+refineindex];
-            I8 = imageS[((i-newspacingx)*ny+j+newspacingy)*NIMG+refineindex];
+            I5 = imageS[refineindex][((i+newspacingx+2*previousspacingx)*ny+j-newspacingy-2*previousspacingy)*NIMG+polrefine];
+            I6 = imageS[refineindex][((i+newspacingx+previousspacingx)*ny+j-newspacingy-previousspacingy)*NIMG+polrefine];
+            I7 = imageS[refineindex][((i+newspacingx)*ny+j-newspacingy)*NIMG+polrefine];
+            I8 = imageS[refineindex][((i-newspacingx)*ny+j+newspacingy)*NIMG+polrefine];
              
             err_abs = (I4-2*I3+I2+I8-2*I7+I6) / (16 * Iavg);
             err_rel = (I4-2*I3+I2+I8-2*I7+I6) / (4 * (I3+I4+I7+I8));
         }
              
         else{
-            I1 = imageS[((i-newspacingx-previousspacingx)*ny+j-newspacingy-previousspacingy)*NIMG+refineindex];
-            I2 = imageS[((i-newspacingx)*ny+j-newspacingy)*NIMG+refineindex];
-            I3 = imageS[((i+newspacingx)*ny+j+newspacingy)*NIMG+refineindex];
-            I4 = imageS[((i+newspacingx+previousspacingx)*ny+j+newspacingy+previousspacingy)*NIMG+refineindex];
+            I1 = imageS[refineindex][((i-newspacingx-previousspacingx)*ny+j-newspacingy-previousspacingy)*NIMG+polrefine];
+            I2 = imageS[refineindex][((i-newspacingx)*ny+j-newspacingy)*NIMG+polrefine];
+            I3 = imageS[refineindex][((i+newspacingx)*ny+j+newspacingy)*NIMG+polrefine];
+            I4 = imageS[refineindex][((i+newspacingx+previousspacingx)*ny+j+newspacingy+previousspacingy)*NIMG+polrefine];
              
-            I5 = imageS[((i+newspacingx+previousspacingx)*ny+j-newspacingy-previousspacingy)*NIMG+refineindex];
-            I6 = imageS[((i+newspacingx)*ny+j-newspacingy)*NIMG+refineindex];
-            I7 = imageS[((i-newspacingx)*ny+j+newspacingy)*NIMG+refineindex];
-            I8 = imageS[((i-newspacingx-previousspacingx)*ny+j+newspacingy+previousspacingy)*NIMG+refineindex];
+            I5 = imageS[refineindex][((i+newspacingx+previousspacingx)*ny+j-newspacingy-previousspacingy)*NIMG+polrefine];
+            I6 = imageS[refineindex][((i+newspacingx)*ny+j-newspacingy)*NIMG+polrefine];
+            I7 = imageS[refineindex][((i-newspacingx)*ny+j+newspacingy)*NIMG+polrefine];
+            I8 = imageS[refineindex][((i-newspacingx-previousspacingx)*ny+j+newspacingy+previousspacingy)*NIMG+polrefine];
          
             err_abs = (I4-I3-I2+I1+I8-I7-I6+I5) / (16 * Iavg);
             err_rel = (I4-I3-I2+I1+I8-I7-I6+I5) / (4 * (I2+I3+I7+I8));
@@ -858,10 +898,12 @@ int main(int argc, char *argv[])
 
               // ray trace (tolerances exceeded)
 
-              get_pixel(i, j, params.nx, params.ny, Xcam, params, fovx, fovy, freq,
-                         params.only_unpolarized, scale, &Intensity, &Intensity6[0], &Tau, &tauF);
+              for (int ijk=0;ijk<ringmax+2;ijk++){
+                get_pixel(i, j, params.nx, params.ny, Xcam, params, fovx, fovy, freq,
+                         params.only_unpolarized, scale, &Intensity, &Intensity6[ijk], &Is6[ijk], &Q6[ijk], &U6[ijk], &V6[ijk], &Tau, &tauF, ijk-1);
+                save_pixel(image[ijk], imageS[ijk], taus[ijk], i, j, nx, ny, params.only_unpolarized, Intensity6[ijk], Is6[ijk], Q6[ijk], U6[ijk], V6[ijk], freqcgs, Tau, tauF);
+              }
 
-              save_pixel(image, imageS, taus, i, j, nx, ny, params.only_unpolarized, Intensity, Intensity6, freqcgs, Tau, tauF);
 
               interp_flag[i*ny+j] = 0;
 
@@ -870,13 +912,14 @@ int main(int argc, char *argv[])
               interp_flag[i*ny+j] = 1;
               if (params.nearest_neighbor) {
                 // nearest interpolation
-                save_pixelTransfer(image, imageS, taus, i - newspacingx,
+                save_pixelTransfer(image[refineindex], imageS[refineindex], taus[refineindex], i - newspacingx,
                                     j - newspacingy, i, j, nx, ny, params.only_unpolarized);
                 // fills in with the nearest neighbor (choosing one side)
               } else {
                 // linear
-        lininterp4(image, imageS, taus, i - newspacingx, j - newspacingy, i + newspacingx,
-               j + newspacingy, i - newspacingx, j + newspacingy, i + newspacingx, j - newspacingy, i, j, nx, ny, params.only_unpolarized);
+                for (int ijk=0;ijk<ringmax+2;ijk++)
+                  lininterp4(image[ijk], imageS[ijk], taus[ijk], i - newspacingx, j - newspacingy, i + newspacingx,
+                 j + newspacingy, i - newspacingx, j + newspacingy, i + newspacingx, j - newspacingy, i, j, nx, ny, params.only_unpolarized);
               }
             }
           }
@@ -901,7 +944,7 @@ int main(int argc, char *argv[])
     }
 
     // TODO print only for "real" pixels
-    print_image_stats(image, imageS, nx, ny, params, scale);
+    print_image_stats(image[refineindex], imageS[refineindex], nx, ny, params, scale);
     
     FILE *fp;
     fp = fopen ("interpvec.txt", "w");
@@ -915,10 +958,12 @@ int main(int argc, char *argv[])
     // like when fitting light curve fluxes
     if (!params.quench_output) {
       // dump result. if specified, also output ppm image
-      dump(image, imageS, taus, params.outf, scale, Xcam, fovx, fovy, nx, ny, &params, params.only_unpolarized);
+      dump(image[refineindex], imageS[refineindex], taus[refineindex], params.outf, scale, Xcam, fovx, fovy, nx, ny, &params, params.only_unpolarized);
+      dump(image[refineindex+1], imageS[refineindex+1], taus[refineindex+1], params.outf0, scale, Xcam, fovx, fovy, nx, ny, &params, params.only_unpolarized);
+      dump(image[refineindex+2], imageS[refineindex+2], taus[refineindex+2], params.outf1, scale, Xcam, fovx, fovy, nx, ny, &params, params.only_unpolarized);
       if (params.add_ppm) {
         // TODO respect filename from params?
-        make_ppm(image, freq, nx, ny, "ipole_lfnu.ppm");
+        make_ppm(image[refineindex], freq, nx, ny, "ipole_lfnu.ppm");
       }
     }
   } // SLOW_LIGHT
@@ -932,7 +977,7 @@ int main(int argc, char *argv[])
 // TODO Move these?
 void get_pixel(size_t i, size_t j, int nx, int ny, double Xcam[NDIM], Params params,
                double fovx, double fovy, double freq, int only_intensity, double scale,
-               double *Intensity, double *Intensity6, double *Tau, double *tauF)
+               double *Intensity, double *Intensity6, double *Is6, double *Q6, double *U6, double *V6, double *Tau, double *tauF, int targetn)
 {
   double X[NDIM], Kcon[NDIM];
   double complex N_coord[NDIM][NDIM];
@@ -951,11 +996,11 @@ void get_pixel(size_t i, size_t j, int nx, int ny, double Xcam[NDIM], Params par
   }
 
   // Integrate emission forward along trajectory
-  int oddflag = integrate_emission(traj, nstep, Intensity, Intensity6, Tau, tauF, N_coord, &params);
+  int oddflag = integrate_emission(traj, nstep, Intensity, Tau, tauF, N_coord, &params, targetn);
 
-  // if (!only_intensity) {
-  //   project_N(X, Kcon, N_coord, Is, Qs, Us, Vs, params.rotcam);
-  // }
+  if (!only_intensity) {
+    project_N(X, Kcon, N_coord, Is6, Q6, U6, V6, params.rotcam);
+  }
 
   // Catch anything with bad tetrads, anything we manually specify, and signficantly negative pixels
   if (oddflag != 0 || (i == DIAG_PX_I && j == DIAG_PX_J) || *Intensity < -1.e-10) {
@@ -989,17 +1034,23 @@ void get_pixel(size_t i, size_t j, int nx, int ny, double Xcam[NDIM], Params par
 }
 
 void save_pixel(double *image, double *imageS, double *taus, size_t i, size_t j, size_t nx, size_t ny, int only_intensity,
-                double Intensity, double Intensity6[7], double freqcgs, double Tau, double tauF)
+                double Intensity, double Is, double Qs, double Us, double Vs, double freqcgs, double Tau, double tauF)
 {
   // deposit the intensity and Stokes parameter in pixel
   image[i*ny+j] = Intensity * pow(freqcgs, 3);
   taus[i*ny+j] = Tau;
 
+  double stokespar[5] = {Is, Qs, Us, Vs, tauF};
+
   if (!only_intensity) {
-    for (int ijk=0; ijk<5;ijk++){
-    double tempvar = Intensity6[ijk] * pow(freqcgs, 3);
-    imageS[(i*ny+j)*NIMG+ijk] = tempvar;
-  }
+    for (int ijk=0; ijk<NIMG; ijk++){
+      imageS[(i*ny+j)*NIMG+ijk] = stokespar[ijk] * pow(freqcgs, 3);
+    }
+    
+  //   for (int ijk=0; ijk<5;ijk++){
+  //   double tempvar = Intensity6[ijk] * pow(freqcgs, 3);
+  //   imageS[(i*ny+j)*NIMG+ijk] = tempvar;
+  // }
 
     if (isnan(imageS[(i*ny+j)*NIMG+0])) {
       fprintf(stderr, "NaN in image! Exiting.\n");
@@ -1034,15 +1085,15 @@ void lininterp2(double *image, double *imageS, double *taus, size_t i1, size_t j
                 size_t i2, size_t j2, size_t inew, size_t jnew, size_t nx, size_t ny, int only_intensity)
 {
   // deposit the intensity and Stokes parameter in pixel
-  double Intensity = .5 * (image[i1*ny+j1] + image[i2*ny+j2]);
-  image[inew*ny+jnew] = Intensity;
+  double Intensity = .5 * (image[i1*ny+j1] +  image[i2*ny+j2]);
+   image[inew*ny+jnew] = Intensity;
   double Tau=.5*(taus[i1*ny+j1]+taus[i2*ny+j2]);
   taus[inew*ny+jnew] = Tau;
 
   if(!only_intensity) {
-    for (int ijk=0; ijk<5; ijk++){
-    double tempvar = .5*(imageS[(i1*ny+j1)*NIMG+ijk]+imageS[(i2*ny+j2)*NIMG+ijk]);
-    imageS[(inew*ny+jnew)*NIMG+ijk] = tempvar;
+    for (int ijk=0;ijk<NIMG;ijk++){
+      double tempvar = .5*(imageS[(i1*ny+j1)*NIMG+ijk]+imageS[(i2*ny+j2)*NIMG+ijk]);
+      imageS[(inew*ny+jnew)*NIMG+ijk] = tempvar;
     }
 
     if (isnan(imageS[(i1*ny+j1)*NIMG+0])||isnan(imageS[(i2*ny+j2)*NIMG+0])) {
@@ -1058,15 +1109,15 @@ void lininterp4(double *image, double *imageS, double *taus, size_t i1, size_t j
                 size_t nx, size_t ny, int only_intensity)
 {
   // deposit the intensity and Stokes parameter in pixel
-  double Intensity = .25 * (image[i1*ny+j1] + image[i2*ny+j2] + image[i3*ny+j3] + image[i4*ny+j4]);
+  double Intensity = .25 * (image[i1*ny+j1] +  image[i2*ny+j2] +  image[i3*ny+j3] +  image[i4*ny+j4]);
   image[inew*ny+jnew] = Intensity;
   double Tau=.25*(taus[i1*ny+j1]+taus[i2*ny+j2]+taus[i3*ny+j3]+taus[i4*ny+j4]);
   taus[inew*ny+jnew] = Tau;
 
   if(!only_intensity) {
-    for (int ijk=0; ijk<5;ijk++){
-    double tempvar = .25*(imageS[(i1*ny+j1)*NIMG+ijk]+imageS[(i2*ny+j2)*NIMG+ijk]+imageS[(i3*ny+j3)*NIMG+ijk]+imageS[(i4*ny+j4)*NIMG+ijk]);
-    imageS[(inew*ny+jnew)*NIMG+ijk] = tempvar;
+    for (int ijk=0;ijk<NIMG;ijk++){
+      double tempvar = .25*(imageS[(i1*ny+j1)*NIMG+ijk]+imageS[(i2*ny+j2)*NIMG+ijk]+imageS[(i3*ny+j3)*NIMG+ijk]+imageS[(i4*ny+j4)*NIMG+ijk]);
+      imageS[(inew*ny+jnew)*NIMG+ijk] = tempvar;
   }
 
     if (isnan(imageS[(i1*ny+j1)*NIMG+0])||isnan(imageS[(i2*ny+j2)*NIMG+0])||isnan(imageS[(i3*ny+j3)*NIMG+0])||isnan(imageS[(i4*ny+j4)*NIMG+0])) {
