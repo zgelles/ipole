@@ -11,12 +11,12 @@ phicam 0
 rotcam 0
 
 # Pixels in x,y dimension
-nx 129
-ny 129
+nx 513
+ny 513
 
 #base resolution
-nx_min 33
-ny_min 33
+nx_min 129
+ny_min 129
 
 #refinement criteria
 
