@@ -3,8 +3,8 @@
 # Common
 dump /home/bprather/Analysis/samples/iharm3d/SANE_a+0.94_288_0900_MKS.h5
 outfile image.h5
-nx 160
-ny 160
+nx 257
+ny 257
 
 # Emission 1=Pandya, 4=Dexter, others are debug/custom
 emission_type 4
@@ -28,10 +28,10 @@ trat_large 20
 
 # Adaptive res
 # enable by setting a minimum "base" image size
-#nx_min 40
-#ny_min 40
-refine_abs = 2e-2
-refine_rel = 1e-2
+nx_min 65
+ny_min 65
+refine_abs = .025
+refine_rel = .001
 refine_cut = 0
 
 # Camera
