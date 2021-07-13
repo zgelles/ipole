@@ -56,6 +56,10 @@ int trace_geodesic(double Xi[NDIM], double Kconi[NDIM], struct of_traj *traj, do
   int nstep = 0;
   int passed_midplane_if_zero = -1;
   int nturns = 0;
+  int ntp = 0; //number of turning points
+  double dthetahalf = 0;
+
+  double tottheta = 0; //total theta swept out
 
   if (Xcam[2] < 0.5) {
     passed_midplane_if_zero = 1;
@@ -64,6 +68,12 @@ int trace_geodesic(double Xi[NDIM], double Kconi[NDIM], struct of_traj *traj, do
   } else {
     passed_midplane_if_zero = 0.;
   }
+
+  double rhere;
+  bl_coord(traj[0].X, &rhere, &traj[0].bltheta);
+  traj[3].bltheta=traj[0].bltheta;
+
+  printf("out1 %g\n",traj[3].bltheta*180/M_PI);
 
   // Integrate backwards
   while ( (!stop_backward_integration(X, Xhalf, Kcon)) && (nstep < step_max - 1) ) {
@@ -118,6 +128,7 @@ int trace_geodesic(double Xi[NDIM], double Kconi[NDIM], struct of_traj *traj, do
 
     //subring decomposition from George Wong
     // first deal with midplane debauchery
+    passed_midplane_if_zero=0; //we no longer care about this in the new formalism
     if (passed_midplane_if_zero != 0) {
       // first test: if we started with 0 < X2 < 0.5
       if (passed_midplane_if_zero > 0) {
@@ -132,9 +143,23 @@ int trace_geodesic(double Xi[NDIM], double Kconi[NDIM], struct of_traj *traj, do
     } else {
       // ignore first few steps to deal with ever-changing initial condition
       if (nstep > 3) {
+        double rnow;
+        bl_coord(traj[nstep].X, &rnow, &traj[nstep].bltheta);
+        
+
 	double dX2a = traj[nstep-1].X[2] - traj[nstep-2].X[2];
 	double dX2b = traj[nstep].X[2] - traj[nstep-1].X[2];
-	if (dX2a * dX2b < 0) nturns++;
+	if (dX2a * dX2b < 0) {
+    ntp++;
+    if (ntp==1){
+    dthetahalf = fabs(2*tottheta-M_PI);
+  }
+  }
+  tottheta += fabs(traj[nstep].bltheta-traj[nstep-1].bltheta);
+  if (ntp >= 1){
+    nturns = tottheta/dthetahalf;
+    printf("nturn %i\n", nturns);
+  }
       }
     }
 
