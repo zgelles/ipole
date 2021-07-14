@@ -34,6 +34,7 @@
  * * In this function, dl is the length of the step *to* point N;
  *   afterward it is *from* point N onward
  */
+
 int trace_geodesic(double Xi[NDIM], double Kconi[NDIM], struct of_traj *traj, double eps, int step_max, double Xcam[NDIM])
 {
   //fprintf(stderr, "Begin trace geodesic");
@@ -56,10 +57,9 @@ int trace_geodesic(double Xi[NDIM], double Kconi[NDIM], struct of_traj *traj, do
   int nstep = 0;
   int passed_midplane_if_zero = -1;
   int nturns = 0;
-  int ntp = 0; //number of turning points
-  double dthetahalf = 0;
-
-  double tottheta = 0; //total theta swept out
+  int ntp = 0;
+  double tottheta = 0;
+  double thetaint = 0;
 
   if (Xcam[2] < 0.5) {
     passed_midplane_if_zero = 1;
@@ -69,11 +69,11 @@ int trace_geodesic(double Xi[NDIM], double Kconi[NDIM], struct of_traj *traj, do
     passed_midplane_if_zero = 0.;
   }
 
-  double rhere;
+  double rhere = 0;
   bl_coord(traj[0].X, &rhere, &traj[0].bltheta);
-  traj[3].bltheta=traj[0].bltheta;
-
-  printf("out1 %g\n",traj[3].bltheta*180/M_PI);
+  for (int i=1; i<4; i++){
+    traj[i].bltheta = traj[0].bltheta;
+  }
 
   // Integrate backwards
   while ( (!stop_backward_integration(X, Xhalf, Kcon)) && (nstep < step_max - 1) ) {
@@ -128,37 +128,35 @@ int trace_geodesic(double Xi[NDIM], double Kconi[NDIM], struct of_traj *traj, do
 
     //subring decomposition from George Wong
     // first deal with midplane debauchery
-    passed_midplane_if_zero=0; //we no longer care about this in the new formalism
+    passed_midplane_if_zero = 0;
     if (passed_midplane_if_zero != 0) {
       // first test: if we started with 0 < X2 < 0.5
       if (passed_midplane_if_zero > 0) {
-	if (traj[nstep].X[2] > 0.5) {
-	  passed_midplane_if_zero = 0;
-	}
+  if (traj[nstep].X[2] > 0.5) {
+    passed_midplane_if_zero = 0;
+  }
       } else {
-	if (traj[nstep].X[2] < 0.5) {
-	  passed_midplane_if_zero = 0;
-	}
+  if (traj[nstep].X[2] < 0.5) {
+    passed_midplane_if_zero = 0;
+  }
       }
     } else {
       // ignore first few steps to deal with ever-changing initial condition
       if (nstep > 3) {
-        double rnow;
-        bl_coord(traj[nstep].X, &rnow, &traj[nstep].bltheta);
-        
-
-	double dX2a = traj[nstep-1].X[2] - traj[nstep-2].X[2];
-	double dX2b = traj[nstep].X[2] - traj[nstep-1].X[2];
-	if (dX2a * dX2b < 0) {
+        bl_coord(traj[nstep].X, &rhere, &traj[nstep].bltheta);
+  double dX2a = traj[nstep-1].X[2] - traj[nstep-2].X[2];
+  double dX2b = traj[nstep].X[2] - traj[nstep-1].X[2];
+  double dta = traj[nstep-1].bltheta - traj[nstep-2].bltheta;
+  double dtb = traj[nstep].bltheta - traj[nstep-1].bltheta;
+  tottheta += fabs(dtb);
+  if (dta * dtb < 0) {
     ntp++;
-    if (ntp==1){
-    dthetahalf = fabs(2*tottheta-M_PI);
+    if (ntp == 1){
+      thetaint = fabs(M_PI-2*traj[nstep].bltheta);
+    }
   }
-  }
-  tottheta += fabs(traj[nstep].bltheta-traj[nstep-1].bltheta);
-  if (ntp >= 1){
-    nturns = tottheta/dthetahalf;
-    printf("nturn %i\n", nturns);
+  if (ntp>0){
+    nturns = tottheta / thetaint;
   }
       }
     }
@@ -169,6 +167,7 @@ int trace_geodesic(double Xi[NDIM], double Kconi[NDIM], struct of_traj *traj, do
   //fprintf(stderr, "End trace geodesic");
   return nstep;
 }
+
 
 /*
  * Initialize a geodesic from the camera
