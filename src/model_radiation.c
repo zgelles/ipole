@@ -78,6 +78,7 @@ static double max_pol_frac_a = 0.99;
 static int do_bremss = 0;
 static int bremss_type = 2;
 static double Zminpower = -1.0;
+static double RmaxFaraday = -1.0;
 
 void try_set_radiation_parameter(const char *word, const char *value)
 {
@@ -94,6 +95,8 @@ void try_set_radiation_parameter(const char *word, const char *value)
   set_by_word_val(word, value, "powerlaw_eta", &powerlaw_eta, TYPE_DBL);
   set_by_word_val(word, value, "eta_anisotropy", &eta_anisotropy, TYPE_DBL);
   set_by_word_val(word, value, "Zminpower", &Zminpower, TYPE_DBL);
+  set_by_word_val(word, value, "RmaxFaraday", &RmaxFaraday, TYPE_DBL);
+
 
   intprefac = gsl_sf_hyperg_2F1(0.5, powerlaw_p/2.0, 1.5, 1.0-eta_anisotropy);
   double poyntingnum = (powerlaw_p-2.0)*(pow(powerlaw_gamma_min,1.0-powerlaw_p)-pow(powerlaw_gamma_max,1.0-powerlaw_p));
@@ -175,7 +178,8 @@ void jar_calc_dist(int dist0, int pol, double X[NDIM], double Kcon[NDIM],
     double r, th;
     bl_coord(X, &r, &th);
     double Zhere = r * cos(th);
-    double Zprefac = 1.0 - exp(-fabs(Zhere/Zminpower));
+    double Zprefac = (r < Zminpower) ? 0.0 : exp(-1.0/(r-Zminpower)); 
+    //double Zprefac = 1.0 - exp(-fabs(Zhere/Zminpower));
     if (Zminpower > 0.0) Ne *= Zprefac;
     /* if (fabs(Zhere) <= Zminpower) Ne = 0; */
   }
@@ -379,9 +383,15 @@ void jar_calc_dist(int dist0, int pol, double X[NDIM], double Kcon[NDIM],
 
     // ROTATIVITIES
     paramsM.dexter_fit = 0;  // Don't use the Dexter rhoV, as it's unstable at low temperature
-    *rQ = rho_nu_fit(&paramsM, paramsM.STOKES_Q) * nu;
-    *rU = rho_nu_fit(&paramsM, paramsM.STOKES_U) * nu;
-    *rV = rho_nu_fit(&paramsM, paramsM.STOKES_V) * nu;
+    double r, th;
+    bl_coord(X, &r, &th);
+    double Rhere = r * sin(th);
+    *rQ = (Rhere < RmaxFaraday || RmaxFaraday < 0) ? rho_nu_fit(&paramsM, paramsM.STOKES_Q) * nu : 0.0;
+    *rU = (Rhere < RmaxFaraday || RmaxFaraday < 0) ? rho_nu_fit(&paramsM, paramsM.STOKES_U) * nu : 0.0;
+    *rV = (Rhere < RmaxFaraday || RmaxFaraday < 0) ? rho_nu_fit(&paramsM, paramsM.STOKES_V) * nu : 0.0;
+    // *rQ = rho_nu_fit(&paramsM, paramsM.STOKES_Q) * nu;
+    // *rU = rho_nu_fit(&paramsM, paramsM.STOKES_U) * nu;
+    // *rV = rho_nu_fit(&paramsM, paramsM.STOKES_V) * nu;
     // printf("rQ %g rV %g\n", *rQ/fabs(*rQ), *rV/fabs(*rV));
   }
 

@@ -81,9 +81,11 @@ void load_par_from_argv(int argc, char *argv[], Params *params) {
 
   params->nx_min = -1;
   params->ny_min = -1;
+
   // Decent guesses for e.g. Zack Gelles's sample image.
   params->refine_rel = 1.e-1;
   params->refine_abs = 1.e-5;
+
   // Disable these unless requested
   params->refine_cut = 0.0;
   params->nearest_neighbor = 0;
