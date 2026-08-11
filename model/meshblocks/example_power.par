@@ -1,0 +1,50 @@
+# ipole meshblock example: thermal disk plus anisotropic power-law jet
+
+# I/O
+dump torus.mhd_w_bcc.00540.bin
+outfile image_power.h5
+nx 256
+ny 256
+
+# Emission 1=Pandya, 4=Dexter, others are debug/custom
+emission_type 4
+sigma_cut 100.0
+sigma_min 1.0 #for splitEDF=1, sigma_min serves as the boundary between disk/jet. otherwise, it's a hard lower bound on sigma in emitting region
+sigma_dynamic 300.0 #300.0
+kappa 3.5
+variable_kappa 0
+powerlaw_p 2.5
+powerlaw_gamma_min 30
+powerlaw_gamma_max 1e8
+eta_anisotropy 1.0
+hpoynting 0.0025
+splitEDF 1 #when splitEDF=1, disk is thermal and jet is power-law EDF
+
+# Inner power-law emission cutoff; negative values disable it
+Zminpower 10.0
+
+# Faraday cutoff in cylindrical radius; negative values disable it
+RmaxFaraday -1.0
+
+# Source and observing setup
+MBH 6.2e9
+M_unit 5e25
+dsource 16.9e6
+freqcgs 230.e9
+trat_small 10
+trat_large 160
+
+rcam 1e8
+rmax_geo 80000
+thetacam 163
+phicam 0
+rotcam 0
+fovx_dsource 2000
+fovy_dsource 2000
+
+eps 0.005
+maxnstep 100000
+polar_cut_deg 0
+qu_conv 0
+only_unpolarized 0
+quench_output 0

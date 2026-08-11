@@ -7,6 +7,9 @@
 #define SLOW_LIGHT (0)
 
 extern double sigma_cut;
+extern double sigma_min;
+extern int splitEDF;
+extern double hpoynting;
 
 double get_dump_t(char *fnam, int dumpidx);
 size_t get_athenak_datastart(char *fname);

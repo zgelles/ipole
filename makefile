@@ -1,5 +1,5 @@
 # Problem to compile
-MODEL = iharm
+MODEL = meshblocks
 
 # Top directory of HDF5, or blank if using h5pcc
 HDF5_DIR =
@@ -26,11 +26,22 @@ MD5=md5sum
 ECHO=echo -e
 
 # Overrides of the above for macOS
-ifneq (,$(findstring Darwin,$(shell uname)))
-	export HDF5_CC = /usr/local/opt/llvm/bin/clang
-	export HDF5_CLINKER = /usr/local/opt/llvm/bin/clang
+# ifneq (,$(findstring Darwin,$(shell uname)))
+# 	export HDF5_CC = /usr/local/opt/llvm/bin/clang
+# 	export HDF5_CLINKER = /usr/local/opt/llvm/bin/clang
 
-	GSL_DIR=/usr/local
+# 	GSL_DIR=/usr/local
+# 	SYSTEM_LIBDIR=
+
+# 	MD5=md5
+# 	ECHO=echo
+# endif
+# Overrides of the above for macOS
+ifneq (,$(findstring Darwin,$(shell uname)))
+	export HDF5_CC = /opt/homebrew/bin/gcc-13
+	export HDF5_CLINKER = /opt/homebrew/bin/gcc-13
+
+	GSL_DIR=/opt/homebrew/opt/gsl
 	SYSTEM_LIBDIR=
 
 	MD5=md5
